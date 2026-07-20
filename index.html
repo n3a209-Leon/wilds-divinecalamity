@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1f16">
+<title>Wilds</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="boot-err"></div>
+
+<div id="hud">
+  <div id="hud-left">
+    <div class="hud-line" id="hud-pos">座標 --</div>
+    <div class="hud-line" id="hud-chunk">區塊 --</div>
+    <div class="hud-line" id="hud-mates"></div>
+    <div class="hud-line divine-hud" id="hud-divine"></div>
+    <div id="bars">
+      <div class="bar"><span>❤️</span><div class="bar-bg"><div class="bar-fill hp" id="bar-hp"></div></div></div>
+      <div class="bar"><span>🍖</span><div class="bar-bg"><div class="bar-fill food" id="bar-food"></div></div></div>
+      <div class="bar"><span>⚡</span><div class="bar-bg"><div class="bar-fill stam" id="bar-stam"></div></div></div>
+      <div class="bar"><span>🧠</span><div class="bar-bg"><div class="bar-fill san" id="bar-san"></div></div></div>
+    </div>
+  </div>
+  <div id="hud-right">
+    <div class="hud-line" id="hud-fps">-- FPS</div>
+    <div class="hud-line" id="hud-time">--</div>
+    <button id="btn-mute">🔊</button>
+    <button id="btn-sync">☁️</button>
+    <button id="btn-diag">🔧</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="joy-base"><div id="joy-knob"></div></div>
+
+<div id="actions">
+  <button class="act-btn" id="btn-a">👊</button>
+  <button class="act-btn" id="btn-b">🗺️</button>
+  <button class="act-btn" id="btn-d">🔨</button>
+  <button class="act-btn" id="btn-c">🎒</button>
+</div>
+
+<div id="bag-panel">
+  <div id="bag-body"></div>
+  <div id="bag-actions">
+    <button class="diag-btn" id="btn-eat-berry">吃漿果</button>
+    <button class="diag-btn" id="btn-eat-meat">吃生肉</button>
+    <button class="diag-btn" id="btn-eat-cooked">吃烤肉</button>
+    <button class="diag-btn" id="btn-eat-soup">喝蘑菇湯</button>
+    <button class="diag-btn" id="btn-eat-jerky">吃肉乾</button>
+    <button class="diag-btn" id="btn-char">切換角色</button>
+  </div>
+  <button id="bag-close">關閉</button>
+</div>
+<div id="store-panel">
+  <div id="store-head">儲物箱</div>
+  <div id="store-body"></div>
+  <div id="store-actions">
+    <button class="diag-btn" id="st-all">全部存入</button>
+    <button class="diag-btn" id="st-close">關閉</button>
+  </div>
+</div>
+<div id="struct-menu">
+  <div class="sm-title" id="sm-name">建物</div>
+  <button id="sm-move">📦 移動</button>
+  <button id="sm-store">🎒 收納（退回材料）</button>
+  <button id="sm-cancel">關閉</button>
+</div>
+<div id="place-bar">
+  <button id="pb-ok">✅ 放置</button>
+  <button id="pb-cancel">↩️ 取消</button>
+</div>
+<div id="goal-card">
+  <div class="gc-title">歡迎來到荒野</div>
+  <div class="gc-line">🪓 靠近樹木、石頭，按右下角按鈕採集</div>
+  <div class="gc-line">🔨 收集木頭後，用工作台合成工具與營火</div>
+  <div class="gc-line">🌙 天黑前生火——夜晚會有狼出沒</div>
+  <div class="gc-line">🎒 餓了就開背包吃漿果</div>
+  <button id="gc-close">開始探索</button>
+</div>
+<div id="craft-panel">
+  <div id="craft-head">工作台</div>
+  <div id="craft-list"></div>
+  <button id="btn-sleep">睡覺（夜晚待在睡袋旁）</button>
+  <button id="craft-close">關閉</button>
+</div>
+<div id="diag-panel">
+  <div id="diag-body"></div>
+  <div id="diag-actions">
+    <button class="diag-btn" id="btn-cloud">雲端登入</button>
+    <button class="diag-btn" id="btn-up">上傳雲端</button>
+    <button class="diag-btn" id="btn-down">下載雲端</button>
+  </div>
+  <div id="diag-actions">
+    <button class="diag-btn" id="btn-save">立即存檔</button>
+    <button class="diag-btn" id="btn-load">讀取存檔</button>
+    <button class="diag-btn danger" id="btn-wipe">清除存檔</button>
+  </div>
+  <button id="diag-close">關閉</button>
+</div>
+
+<script>
+/* 手機上沒有 console，任何載入期錯誤直接顯示在畫面上。
+   這段必須早於所有模組，才攔得到模組本身的載入錯誤。 */
+window.__wildsErr = function(msg) {
+  try {
+    var el = document.getElementById('boot-err');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'boot-err';
+      document.body.appendChild(el);
+    }
+    el.style.display = 'block';
+    el.textContent = (el.textContent ? el.textContent + '\n' : '') + msg;
+  } catch (e) {}
+};
+window.addEventListener('error', function(e) {
+  var f = (e.filename || '').split('/').pop();
+  if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'IMG')) {
+    window.__wildsErr('\u2717 \u627e\u4e0d\u5230\u6a94\u6848\uff1a' + (e.target.src || '').split('/').slice(-2).join('/'));
+    return;
+  }
+  window.__wildsErr('\u2717 ' + (e.message || 'error') + '\n   ' + f + ':' + (e.lineno || 0));
+}, true);
+</script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/config.js"></script>
+<script src="js/sfx.js"></script>
+<script src="js/rng.js"></script>
+<script src="js/world.js"></script>
+<script src="js/inventory.js"></script>
+<script src="js/store.js"></script>
+<script src="js/resources.js"></script>
+<script src="js/minimap.js"></script>
+<script src="js/save.js"></script>
+<script src="js/stats.js"></script>
+<script src="js/mobs.js"></script>
+<script src="js/arrows.js"></script>
+<script src="js/build.js"></script>
+<script src="js/sites.js"></script>
+<script src="js/companions.js"></script>
+<script src="js/divine-arms.js"></script>
+<script src="js/bosses.js"></script>
+<script src="js/calamity.js"></script>
+<script src="js/skins.js"></script>
+<script src="js/craft.js"></script>
+<script src="js/time.js"></script>
+<script src="js/cloud.js"></script>
+<script src="js/art.js"></script>
+<script src="js/camera.js"></script>
+<script src="js/input.js"></script>
+<script src="js/player.js"></script>
+<script src="js/render.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
