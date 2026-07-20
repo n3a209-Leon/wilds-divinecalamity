@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "regionBosses": [
+    {"id":"hydra","name":"終焉九頭蛇","region":"forest","hp":900,"reward":"divine_shield"},
+    {"id":"frost_dragon","name":"冰霜聖龍","region":"snow","hp":1050,"reward":"divine_rifle"},
+    {"id":"corrupt_colossus","name":"腐敗巨像","region":"swamp","hp":1250,"reward":"divine_axe"},
+    {"id":"thunder_eagle","name":"雷霆天鷹","region":"highland","hp":850,"reward":"divine_wings"},
+    {"id":"magma_god","name":"熔岩魔神","region":"volcano","hp":1450,"reward":"divine_sword"}
+  ],
+  "divineArms": [
+    {"id":"divine_shield","name":"神盾","cooldown":8},
+    {"id":"divine_rifle","name":"神槍","cooldown":0.75},
+    {"id":"divine_sword","name":"神劍","cooldown":0},
+    {"id":"divine_axe","name":"神斧","cooldown":0},
+    {"id":"divine_wings","name":"神翼","cooldown":15}
+  ],
+  "calamities": [
+    {"id":"abyss_whale","name":"深淵巨鯤","unlockDay":20,"skin":"abyss_god"},
+    {"id":"bone_titan","name":"骷髏泰坦","unlockDay":20,"skin":"death_king"},
+    {"id":"star_god","name":"星辰古神","unlockDay":20,"skin":"star_god_skin"},
+    {"id":"end_phoenix","name":"終焉鳳凰","unlockDay":20,"skin":"phoenix_skin"},
+    {"id":"end_eye","name":"終焉之眼","unlockDay":20,"skin":"end_skin"}
+  ]
+}
