@@ -8,12 +8,15 @@ W.Game = (function() {
   var hudTimer = 0;
   var frame = 0;
   var elToast, toastT = 0;
-  var elHp, elFood, elStam, elSan, elTime, elMates, elDivine;
+  var elHp, elFood, elStam, elSan, elTime, elMates, elDivine, elGuideTitle, elGuideHint;
+  var elJournalTrackTitle, elJournalTrackText, elJournalTrackFill;
   var deadT = 0;
   var craftOpen = false;
+  var travelOpen = false, equipOpen = false, journalOpen = false, rewardOpen = false;
+  var updateReg = null, reloadOnController = false;
 
   function resize() {
-    var dpr = Math.min(window.devicePixelRatio || 1, W.CFG.MAX_DPR);
+    var dpr = Math.min(window.devicePixelRatio || 1, W.Settings ? W.Settings.dprCap() : W.CFG.MAX_DPR);
     var w = window.innerWidth;
     var h = window.innerHeight;
     canvas.width  = Math.floor(w * dpr);
@@ -42,7 +45,47 @@ W.Game = (function() {
         : '';
     }
     if(elDivine&&W.DivineArms)updateDivineHud();
+    if (W.Guide && elGuideTitle && elGuideHint) updateGuideHud();
+    if (W.Journal && elJournalTrackText) updateJournalHud();
+    if (W.Rewards) updateRewardBadge();
     elTime.textContent = '\u7b2c ' + W.Time.dayNo() + ' \u5929 ' + W.Time.clock() + ' \u00b7 ' + W.Time.phase();
+  }
+
+  var _guideSig = '';
+  function updateGuideHud() {
+    var g = W.Guide.current();
+    if (!g || !g.on) return;
+    var dist = g.arrived ? '已抵達' : ('距離 ' + Math.round(g.distance));
+    var sig = g.kind + '|' + g.id + '|' + dist + '|' + g.hint;
+    if (sig === _guideSig) return;
+    _guideSig = sig;
+    elGuideTitle.textContent = '🧭 ' + g.label + ' · ' + dist;
+    elGuideHint.textContent = g.hint;
+  }
+
+  var _journalSig = '';
+  function updateJournalHud() {
+    var cur = W.Journal.current(), st = W.Journal.stats();
+    var sig = st.completed + '|' + st.claimed + '|' + (cur ? cur.id + '|' + cur.value + '|' + cur.max + '|' + cur.text : 'all');
+    if (sig === _journalSig) return;
+    _journalSig = sig;
+    if (!cur) {
+      elJournalTrackTitle.textContent = '📜 冒險日誌 · 全部完成';
+      elJournalTrackText.textContent = st.unclaimed ? ('還有 ' + st.unclaimed + ' 份獎勵可以領取') : '荒野傳奇已完整記錄';
+      elJournalTrackFill.style.width = '100%';
+      return;
+    }
+    elJournalTrackTitle.textContent = '📜 ' + cur.chapter;
+    elJournalTrackText.textContent = cur.title + ' · ' + cur.text;
+    elJournalTrackFill.style.width = Math.max(0, Math.min(100, cur.value / cur.max * 100)) + '%';
+  }
+
+  var _rewardSig = '';
+  function updateRewardBadge() {
+    var s=W.Rewards.stats(),n=s.unseen+s.journalUnclaimed,b=document.getElementById('reward-badge');
+    if(!b)return;
+    var sig=String(n);if(sig===_rewardSig)return;_rewardSig=sig;
+    b.textContent=n>9?'9+':String(n);b.className=n>0?'on':'';
   }
 
   /* 神武 HUD：圖示 + 文字。只在狀態改變時重建 DOM，避免每次刷新都動 innerHTML。 */
@@ -55,6 +98,9 @@ W.Game = (function() {
     var ds = W.DivineArms.stats();
     var sig = ds.owned + '|' + (ds.shield ? 1 : 0) + (ds.gun ? 1 : 0) + (ds.sword ? 1 : 0)
             + (ds.axe ? 1 : 0) + (ds.wing ? 1 : 0)
+            + '|eq:' + (W.DivineArms.isEquipped('shield') ? 1 : 0) + (W.DivineArms.isEquipped('gun') ? 1 : 0)
+            + (W.DivineArms.isEquipped('sword') ? 1 : 0) + (W.DivineArms.isEquipped('axe') ? 1 : 0)
+            + (W.DivineArms.isEquipped('wing') ? 1 : 0)
             + '|' + (ds.active ? 1 : 0) + (ds.axeActive ? 1 : 0) + (ds.wingActive ? 1 : 0)
             + '|' + (ds.overdrive ? 1 : 0) + (ds.domain ? 1 : 0) + '|' + (ds.label || '');
     if (sig === _divineSig) return;
@@ -64,13 +110,14 @@ W.Game = (function() {
     var html = '', k;
     for (k in DIVINE_ICON) {
       if (!DIVINE_ICON.hasOwnProperty(k) || !ds[k]) continue;
+      var equipped = W.DivineArms.isEquipped(k);
       var on = (k === 'shield') ? ds.active
              : ((k === 'axe') ? (ds.axeActive || ds.domain)
              : ((k === 'wing') ? (ds.wingActive || ds.domain) : (ds.overdrive || ds.domain)));
-      html += '<img class="dv-ico" alt="" src="' + W.CFG.ART_DIR + 'ui/' + DIVINE_ICON[k]
+      html += '<img class="dv-ico' + (equipped ? '' : ' off') + '" alt="" src="' + W.CFG.ART_DIR + 'ui/' + DIVINE_ICON[k]
             + (on ? '_on' : '') + '.png">';
     }
-    html += '<span class="dv-txt">\u795e\u6b66 ' + ds.owned + '/5'
+    html += '<span class="dv-txt">神武裝備 ' + (ds.equipped || 0) + '/' + ds.owned
           + (ds.label ? ' \u00b7 ' + ds.label : '') + '</span>';
     elDivine.innerHTML = html;
   }
@@ -145,12 +192,17 @@ W.Game = (function() {
 
   var _charIdx = 0;
 
+  function applyCharacterSprite() {
+    var base=W.CFG.SPRITE_LIST[_charIdx];
+    W.Render.setSprite(W.Skins&&W.Skins.spriteFor?W.Skins.spriteFor(_charIdx,base):base);
+  }
+
   function loadCharPref() {
     var v = 0;
     try { v = parseInt(window.localStorage.getItem('wilds:char') || '0', 10); } catch (e) {}
     if (!(v >= 0 && v < W.CFG.SPRITE_LIST.length)) v = 0;
     _charIdx = v;
-    W.Render.setSprite(W.CFG.SPRITE_LIST[_charIdx]);
+    applyCharacterSprite();
     charLabel();
   }
 
@@ -162,9 +214,10 @@ W.Game = (function() {
 
   function nextChar() {
     _charIdx = (_charIdx + 1) % W.CFG.SPRITE_LIST.length;
-    W.Render.setSprite(W.CFG.SPRITE_LIST[_charIdx]);
+    applyCharacterSprite();
     try { window.localStorage.setItem('wilds:char', String(_charIdx)); } catch (e) {}
     charLabel();
+    if(rewardOpen)renderRewards();
     showToast('\u5df2\u5207\u63db\u70ba\uff1a' + W.CFG.SPRITE_NAMES[_charIdx]);
   }
 
@@ -246,11 +299,294 @@ W.Game = (function() {
     document.getElementById('bag-panel').classList.add('open');
   }
 
-  var _btnA = null;
+  var TOOL_LOADOUT = [
+    {id:'none', name:'徒手', icon:'✋', desc:'無工具加成'},
+    {id:'axe', name:'石斧', art:'ui/axe', desc:'伐木＋2、攻擊＋7'},
+    {id:'maxe', name:'金屬斧', art:'ui/axe', desc:'伐木＋4、攻擊＋14'},
+    {id:'pick', name:'石鎬', art:'ui/pick', desc:'採石＋2'},
+    {id:'mpick', name:'金屬鎬', art:'ui/pick', desc:'採石＋4'},
+    {id:'bow', name:'木弓', icon:'🏹', desc:'消耗箭矢遠程射擊'}
+  ];
+  var DIVINE_LOADOUT = [
+    {id:'shield', name:'神盾', art:'divine_shield'},
+    {id:'gun', name:'神槍', art:'divine_gun'},
+    {id:'sword', name:'神劍', art:'divine_sword'},
+    {id:'axe', name:'神斧', art:'divine_axe'},
+    {id:'wing', name:'神翼', art:'divine_wing'}
+  ];
+
+  function dataButton(e, attr) {
+    var t = e.target;
+    while (t && t !== document.body) {
+      if (t.getAttribute && t.getAttribute(attr) !== null) return t;
+      t = t.parentNode;
+    }
+    return null;
+  }
+
+  function renderTravel() {
+    var el = document.getElementById('travel-list');
+    var ps = W.Travel.list(), html = '', i, p, at;
+    for (i = 0; i < ps.length; i++) {
+      p = ps[i]; at = p.distance < 90;
+      html += '<button class="travel-row" data-travel="' + p.id + '"' + (p.unlocked && !at ? '' : ' disabled') + '>'
+        + '<span class="travel-icon">' + p.icon + '</span>'
+        + '<span class="travel-copy"><span class="travel-name">' + p.name + '</span>'
+        + '<span class="travel-status">' + (at ? '你目前就在這裡' : p.status) + '</span></span>'
+        + '<span class="travel-dist">' + (p.unlocked ? Math.round(p.distance) : '🔒') + '</span></button>';
+    }
+    el.innerHTML = html;
+  }
+
+  function openTravel() {
+    equipOpen = false; document.getElementById('equip-panel').classList.remove('open');
+    journalOpen = false; document.getElementById('journal-panel').classList.remove('open');
+    rewardOpen = false; document.getElementById('reward-panel').classList.remove('open');
+    renderTravel(); travelOpen = true;
+    document.getElementById('travel-panel').classList.add('open');
+  }
+  function closeTravel() { travelOpen = false; document.getElementById('travel-panel').classList.remove('open'); }
+
+  function onTravelClick(e) {
+    var b = dataButton(e, 'data-travel'); if (!b) return;
+    var r = W.Travel.go(b.getAttribute('data-travel'));
+    showToast(r.msg);
+    if (r.ok) { if(W.Render&&W.Render.travelFx)W.Render.travelFx(W.Player.wx,W.Player.wy);closeTravel(); W.Save.save(); }
+    else renderTravel();
+  }
+
+  function toolLabel(id) {
+    var i; for (i = 0; i < TOOL_LOADOUT.length; i++) if (TOOL_LOADOUT[i].id === id) return TOOL_LOADOUT[i].name;
+    return '徒手';
+  }
+
+  function renderEquipment() {
+    var current = W.Craft.equipped ? W.Craft.equipped() : '';
+    var html = '', i, d, owned, on, eqN = 0;
+    for (i = 0; i < TOOL_LOADOUT.length; i++) {
+      d = TOOL_LOADOUT[i]; owned = d.id === 'none' || W.Craft.has(d.id); on = (d.id === 'none' ? !current : current === d.id);
+      html += '<button class="equip-card' + (on ? ' on' : '') + '" data-tool="' + d.id + '"' + (owned ? '' : ' disabled') + '>'
+        + (d.art ? '<img alt="" src="' + W.CFG.ART_DIR + d.art + '.png">' : '<span class="equip-emoji">' + d.icon + '</span>')
+        + '<span>' + d.name + '</span><span class="equip-state">' + (on ? '已裝備' : (owned ? d.desc : '尚未製作')) + '</span></button>';
+    }
+    document.getElementById('tool-grid').innerHTML = html;
+
+    html = '';
+    for (i = 0; i < DIVINE_LOADOUT.length; i++) {
+      d = DIVINE_LOADOUT[i]; owned = W.DivineArms.has(d.id); on = owned && W.DivineArms.isEquipped(d.id); if (on) eqN++;
+      html += '<button class="equip-card' + (on ? ' on' : '') + '" data-divine="' + d.id + '"' + (owned ? '' : ' disabled') + '>'
+        + '<img alt="" src="' + W.CFG.ART_DIR + 'ui/' + d.art + (on ? '_on' : '') + '.png">'
+        + '<span>' + d.name + '</span><span class="equip-state">' + (on ? '已裝備' : (owned ? '收進背包' : '尚未獲得')) + '</span></button>';
+    }
+    document.getElementById('divine-grid').innerHTML = html;
+    var resonance = W.DivineArms.resonanceLabel ? W.DivineArms.resonanceLabel() : '';
+    document.getElementById('equip-summary').textContent = '目前主手：' + toolLabel(current || 'none')
+      + '　｜　神武：' + eqN + '/5 件已裝備' + (resonance ? '　｜　共鳴：' + resonance : '');
+  }
+
+  function openEquipment() {
+    travelOpen = false; document.getElementById('travel-panel').classList.remove('open');
+    journalOpen = false; document.getElementById('journal-panel').classList.remove('open');
+    rewardOpen = false; document.getElementById('reward-panel').classList.remove('open');
+    renderEquipment(); equipOpen = true;
+    document.getElementById('equip-panel').classList.add('open');
+  }
+  function closeEquipment() { equipOpen = false; document.getElementById('equip-panel').classList.remove('open'); }
+
+  function onEquipmentClick(e) {
+    var b = dataButton(e, 'data-tool'), id, on;
+    if (b) {
+      id = b.getAttribute('data-tool');
+      if (W.Craft.equip(id)) {
+        showToast(id === 'none' ? '已收起主手工具' : '已裝備「' + toolLabel(id) + '」');
+        renderEquipment(); W.Save.save();
+      }
+      return;
+    }
+    b = dataButton(e, 'data-divine'); if (!b) return;
+    id = b.getAttribute('data-divine'); on = !W.DivineArms.isEquipped(id);
+    if (W.DivineArms.setEquipped(id, on)) {
+      showToast((on ? '已裝備「' : '已卸下「') + DIVINE_LOADOUT.filter(function(d){return d.id===id;})[0].name + '」');
+      renderEquipment(); W.Save.save();
+    }
+  }
+
+  function renderJournal() {
+    var defs = W.Journal.list(), stats = W.Journal.stats(), html = '', chapter = '', i, d, s, pct, tag;
+    document.getElementById('journal-summary').textContent = '已完成 ' + stats.completed + '/' + stats.total
+      + '　｜　已領取 ' + stats.claimed + '/' + stats.total
+      + (stats.unclaimed ? '　｜　待領獎勵 ' + stats.unclaimed : '');
+    for (i = 0; i < defs.length; i++) {
+      d = defs[i]; s = W.Journal.state(d.id);
+      if (d.chapter !== chapter) {
+        chapter = d.chapter;
+        html += '<div class="journal-chapter">' + chapter + '</div>';
+      }
+      pct = Math.max(0, Math.min(100, s.value / s.max * 100));
+      tag = s.claimed ? '已領取' : (s.completed ? '可領取' : (s.current ? '目前目標' : '未完成'));
+      html += '<div class="journal-row' + (s.current ? ' current' : '') + (s.completed ? ' done' : '') + '">'
+        + '<div class="journal-row-head"><span class="journal-check">' + (s.completed ? '✓' : '○') + '</span>'
+        + '<span class="journal-title">' + d.title + '</span><span class="journal-tag">' + tag + '</span></div>'
+        + '<div class="journal-desc">' + d.desc + '</div>'
+        + '<div class="journal-progress"><span style="width:' + pct + '%"></span></div>'
+        + '<div class="journal-meta">' + s.text + '<br><span class="journal-reward">獎勵：' + W.Journal.rewardText(d.id) + '</span></div>';
+      if ((s.completed && !s.claimed) || (!s.completed && d.track)) {
+        html += '<div class="journal-actions">'
+          + (s.completed && !s.claimed ? '<button class="journal-action claim" data-journal-claim="' + d.id + '">領取獎勵</button>' : '')
+          + (!s.completed && d.track ? '<button class="journal-action" data-journal-track="' + d.id + '">導航目標</button>' : '')
+          + '</div>';
+      }
+      html += '</div>';
+    }
+    document.getElementById('journal-list').innerHTML = html;
+  }
+
+  function openJournal() {
+    travelOpen = false; document.getElementById('travel-panel').classList.remove('open');
+    equipOpen = false; document.getElementById('equip-panel').classList.remove('open');
+    rewardOpen = false; document.getElementById('reward-panel').classList.remove('open');
+    W.Journal.update(1);
+    renderJournal(); journalOpen = true;
+    document.getElementById('journal-panel').classList.add('open');
+  }
+  function closeJournal() { journalOpen = false; document.getElementById('journal-panel').classList.remove('open'); }
+
+  function onJournalClick(e) {
+    var b = dataButton(e, 'data-journal-claim'), r, id;
+    if (b) {
+      r = W.Journal.claim(b.getAttribute('data-journal-claim'));
+      showToast(r.msg);
+      if (r.ok) { _journalSig = ''; renderJournal(); updateJournalHud(); W.Save.save(); }
+      return;
+    }
+    b = dataButton(e, 'data-journal-track'); if (!b) return;
+    id = b.getAttribute('data-journal-track');
+    if (W.Journal.track(id)) {
+      closeJournal(); updateGuideHud();
+      showToast('🧭 導航已切換，跟隨角色身上的箭頭前進');
+    }
+  }
+
+  function renderRewards() {
+    var s=W.Rewards.stats(),items=W.Rewards.list(),ranks=W.Rewards.ranks?W.Rewards.ranks():[],html='',rankHtml='',i,r,d,src;
+    for(i=0;i<ranks.length;i++){r=ranks[i];rankHtml+='<div class="honor-rank'+(r.unlocked?' unlocked':'')+(r.current?' current':'')+'"><span>'+(r.unlocked?'✓':'🔒')+' '+r.name+'</span><small>'+r.at+' 榮譽 · '+r.reward+'</small></div>';}
+    document.getElementById('reward-summary').innerHTML='<strong>'+s.rank+'</strong>　荒野榮譽 '+s.honor
+      +(s.max?'　·　最高榮譽階級':'　·　距離下一階級 '+s.needed)
+      +'<br>目前階級獎勵：'+s.rankReward+'<br>傳說 Skin '+s.skins+'/'+s.totalSkins+'　｜　神格碎片 '+s.shards
+      +'<div class="honor-road">'+rankHtml+'</div>';
+    var jl=document.getElementById('reward-journal-link');
+    jl.textContent=s.journalUnclaimed?'📜 有 '+s.journalUnclaimed+' 份冒險日誌獎勵待領取':'📜 查看冒險日誌與主線獎勵';
+    for(i=0;i<items.length;i++){
+      r=items[i];d=r.def;src=d.sprites[_charIdx]||d.sprites[0];
+      html+='<div class="skin-card'+(r.equipped?' equipped':'')+(r.owned?'':' locked')+'">'
+        +(r.unseen?'<span class="skin-new">NEW</span>':'')
+        +'<div class="skin-preview" style="background-image:url(\''+src+'\')"></div>'
+        +'<div class="skin-info"><div class="skin-name">'+(r.owned?'':'🔒 ')+d.name+'</div>'
+        +'<div class="skin-rarity">'+d.rarity+' · '+W.CFG.SPRITE_NAMES[_charIdx]+'專用外觀</div>'
+        +'<div class="skin-ability">'+d.ability+(d.id==='phoenix'&&W.Skins.stats().phoenixUsed?'<br>🔥 本次涅槃已使用':'')+'</div><div class="skin-condition">解鎖：'+d.condition+'</div>'
+        +'<button class="skin-action'+(r.equipped?' on':'')+'" data-skin="'+d.id+'"'+(r.owned?'':' disabled')+'>'
+        +(r.equipped?'卸下 Skin':(r.owned?'裝備 Skin':'尚未解鎖'))+'</button></div></div>';
+    }
+    document.getElementById('reward-list').innerHTML=html;
+  }
+
+  function openRewards() {
+    travelOpen=false;document.getElementById('travel-panel').classList.remove('open');
+    equipOpen=false;document.getElementById('equip-panel').classList.remove('open');
+    journalOpen=false;document.getElementById('journal-panel').classList.remove('open');
+    var changed=W.Rewards.sync(true);if(changed)applyCharacterSprite();
+    renderRewards();rewardOpen=true;document.getElementById('reward-panel').classList.add('open');
+    changed=W.Rewards.markAllSeen()||changed;_rewardSig='';updateRewardBadge();if(changed)W.Save.save();
+  }
+  function closeRewards(){rewardOpen=false;document.getElementById('reward-panel').classList.remove('open');}
+
+  function onRewardClick(e){
+    var b=dataButton(e,'data-skin');if(!b)return;var id=b.getAttribute('data-skin');
+    if(W.Skins.equippedId()===id)W.Skins.equip('');else W.Skins.equip(id);
+    renderRewards();
+  }
+
+  var SETTING_ROWS = [
+    {key:'shake',name:'鏡頭震動',desc:'受擊與重擊時的震動強度',choices:[[0,'關'],[0.5,'柔和'],[1,'完整']]},
+    {key:'haptics',name:'手機震動',desc:'受擊與成功翻滾時的觸覺回饋',choices:[[false,'關'],[true,'開']]},
+    {key:'flashes',name:'畫面閃光',desc:'首領降臨、神武與 Skin 的全畫面閃光',choices:[[false,'關'],[true,'開']]},
+    {key:'reducedMotion',name:'減少動態效果',desc:'停用慢動作、命中停頓、震屏與全畫面閃光',choices:[[false,'關'],[true,'開']]},
+    {key:'highContrast',name:'高對比警示',desc:'替首領技能與地面危險區加上黑白外框',choices:[[false,'關'],[true,'開']]},
+    {key:'damageNumbers',name:'傷害數字',desc:'顯示敵人受到的浮動傷害值',choices:[[false,'關'],[true,'開']]},
+    {key:'sfxVolume',name:'音效音量',desc:'調整合成音效，不影響裝置音量',choices:[[0,'靜音'],[0.5,'標準'],[1,'響亮']]},
+    {key:'lowPower',name:'省電模式',desc:'DPR 限制為 1，減少疊加特效與手機發熱',choices:[[false,'關'],[true,'開']]}
+  ];
+
+  function settingValue(v) { return typeof v === 'boolean' ? (v ? 'true' : 'false') : String(v); }
+  function renderSettings() {
+    var html='',i,j,row,cur,c;
+    for(i=0;i<SETTING_ROWS.length;i++){
+      row=SETTING_ROWS[i];cur=W.Settings.get(row.key);
+      html+='<div class="setting-row"><div class="setting-copy"><div class="setting-name">'+row.name+'</div><div class="setting-desc">'+row.desc+'</div></div><div class="setting-control">';
+      for(j=0;j<row.choices.length;j++){c=row.choices[j];html+='<button class="setting-choice'+(cur===c[0]?' on':'')+'" data-setting="'+row.key+'" data-value="'+settingValue(c[0])+'">'+c[1]+'</button>';}
+      html+='</div></div>';
+    }
+    document.getElementById('settings-list').innerHTML=html;
+  }
+  function openSettings(){renderSettings();document.getElementById('settings-panel').classList.add('open');}
+  function closeSettings(){document.getElementById('settings-panel').classList.remove('open');}
+  function syncMuteButton(){
+    var b=document.getElementById('btn-mute');if(!b||!W.Sfx)return;
+    var silent=W.Sfx.isMuted()||Number(W.Settings.get('sfxVolume'))<=0;
+    b.textContent=silent?'🔇':'🔊';b.setAttribute('aria-pressed',silent?'true':'false');
+  }
+  function onSettingsClick(e){
+    var b=dataButton(e,'data-setting');if(!b)return;
+    var key=b.getAttribute('data-setting'),raw=b.getAttribute('data-value');
+    var val=raw==='true'?true:(raw==='false'?false:Number(raw));
+    W.Settings.set(key,val);renderSettings();
+    if(key==='lowPower')resize();
+    if(key==='sfxVolume')syncMuteButton();
+    showToast('設定已更新');
+  }
+
+  function summaryText(s){
+    if(!s)return '無法讀取';
+    return '儲存時間：'+(s.savedAt?new Date(s.savedAt).toLocaleString():'未知')+'\n'
+      +'遊戲天數：第 '+s.day+' 天\n區域首領：'+s.regions+'/5\n全部首領：'+s.bosses+'\n'
+      +'神武：'+s.divine+'/5\n傳說 Skin：'+s.skins+'/5\n冒險獎勵：'+s.journal+'\n'
+      +'飛升輪迴：'+s.ascension+'　神格碎片：'+s.shards;
+  }
+  function closeCloudConflict(){document.getElementById('cloud-conflict-panel').classList.remove('open');}
+  function openCloudConflict(){
+    showToast('正在比較兩份存檔…');
+    W.Save.save().then(function(){return W.Cloud.compare();}).then(function(r){
+      if(!r||typeof r==='string'){cloudResult(r,'');return;}
+      document.getElementById('conflict-local').textContent=summaryText(r.local);
+      document.getElementById('conflict-remote').textContent=summaryText(r.remote);
+      document.getElementById('cloud-conflict-panel').classList.add('open');
+    });
+  }
+
+  function uiModalOpen(){
+    var ids=['bag-panel','store-panel','craft-panel','travel-panel','equip-panel','journal-panel','reward-panel',
+      'settings-panel','cloud-conflict-panel','diag-panel','goal-card','update-panel'];
+    var i,el;
+    for(i=0;i<ids.length;i++){el=document.getElementById(ids[i]);if(el&&el.classList&&el.classList.contains('open'))return true;}
+    return false;
+  }
+
+  var _btnA = null, _btnRoll = null;
   var _btnMode = '';
   var _btnTimer = 0;
   var _bowCd = 0;
   var _nearMob = null;
+
+  function doRoll(){
+    if(uiModalOpen())return;
+    var wx=W.Player.wx,wy=W.Player.wy,r=W.Player.roll();
+    if(r===true){
+      if(W.Render&&W.Render.dodgeFx)W.Render.dodgeFx(wx,wy,W.Player.rollX,W.Player.rollY);
+      if(W.Sfx)W.Sfx.dodge();
+      if(W.Settings)W.Settings.vibrate(18);
+    }else if(r==='tired')showToast('體力不足，無法翻滾');
+    else if(r==='dead')showToast('倒下時無法翻滾');
+  }
 
   /* 一次迴圈同時得到最近距離與最近目標，不跑兩趟 */
   /* 弓箭的目標包含魔王：魔王物件有 alive / wx / wy，與生物相容 */
@@ -288,7 +624,7 @@ W.Game = (function() {
   function nearestMob() { return _nearMob; }
 
   function canBow(dist) {
-    return W.Craft.has('bow') && W.Inv.count('arrow') > 0 &&
+    return W.Craft.equipped && W.Craft.equipped() === 'bow' && W.Inv.count('arrow') > 0 &&
            dist > W.CFG.ATTACK_RANGE && dist <= W.CFG.BOW_RANGE;
   }
 
@@ -297,6 +633,13 @@ W.Game = (function() {
     _btnTimer += dt;
     if (_btnTimer < 0.2) return;
     _btnTimer = 0;
+    _btnA.classList[W.Player.perfectReady&&W.Player.perfectReady()?'add':'remove']('perfect-ready');
+
+    if(_btnRoll){
+      var rcd=W.Player.rollCooldown?W.Player.rollCooldown():0,rc=document.getElementById('roll-cooldown');
+      _btnRoll.classList[rcd>0?'add':'remove']('cooldown');
+      if(rc)rc.textContent=rcd>0?rcd.toFixed(1):'';
+    }
 
     var mode, icon;
     var P = W.Player;
@@ -304,7 +647,8 @@ W.Game = (function() {
     if (W.Calamity && W.Calamity.near(P.wx, P.wy)) {
       if (_btnMode !== 'calamity') {
         _btnMode = 'calamity';
-        _btnA.textContent = '☄️';
+        var cst=W.Calamity.stats?W.Calamity.stats():null;
+        _btnA.textContent = cst&&cst.summoning?'✖️':'☄️';
         _btnA.style.opacity = '1';
         _btnA.style.transform = 'scale(1.12)';
       }
@@ -364,10 +708,12 @@ W.Game = (function() {
   }
 
   function doAction() {
+    if (uiModalOpen()) return;
     if (W.Stats.isDead()) return;
 
     if (W.Calamity && W.Calamity.near(W.Player.wx, W.Player.wy)) {
-      if (W.Calamity.summon()) { W.Save.save(); }
+      var ritual=W.Calamity.summon();
+      if(ritual)_btnMode='';
       return;
     }
 
@@ -412,18 +758,20 @@ W.Game = (function() {
     W.Render.slash(W.Player.faceX, W.Player.faceY);
     if (W.DivineArms && W.DivineArms.onPlayerAttack) W.DivineArms.onPlayerAttack();
     var a = W.Player.attack();
+    var attackDmg=W.Player.lastAttackDamage?W.Player.lastAttackDamage():(W.CFG.ATTACK_DMG+W.Craft.attackBonus());
     if (!a && W.Bosses) {
       a = W.Bosses.hitAt(W.Player.wx + W.Player.faceX * 40,
                          W.Player.wy + W.Player.faceY * 40,
-                         W.CFG.ATTACK_RANGE, W.CFG.ATTACK_DMG + W.Craft.attackBonus());
+                         W.CFG.ATTACK_RANGE, attackDmg);
     }
     if (!a && W.Calamity && W.Calamity.hitAt) {
       a = W.Calamity.hitAt(W.Player.wx + W.Player.faceX * 40,
                            W.Player.wy + W.Player.faceY * 40,
-                           W.CFG.ATTACK_RANGE, W.CFG.ATTACK_DMG + W.Craft.attackBonus());
+                           W.CFG.ATTACK_RANGE, attackDmg);
     }
     if (a === 'tired') { showToast('\u9ad4\u529b\u4e0d\u8db3'); return; }
     if (a) {
+      if(W.Render&&W.Render.impact)W.Render.impact(a.wx||W.Player.wx+W.Player.faceX*40,a.wy||W.Player.wy+W.Player.faceY*40,!!(a.killed||a.boss));
       W.Render.dmgText(W.Player.wx + W.Player.faceX * 40, W.Player.wy + W.Player.faceY * 40 - 14, '-' + a.dmg);
       if (W.Sfx) { if (a.killed) { W.Sfx.kill(); } else { W.Sfx.hit(); } }
       if (a.killed) checkWolfMilestone(a.type);
@@ -481,6 +829,64 @@ W.Game = (function() {
     cloudLabel();
   }
 
+  function exportBackup(){
+    W.Save.snapshot().then(function(data){
+      if(!data){showToast('無法建立備份');return;}
+      var blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+      var url=window.URL&&window.URL.createObjectURL?window.URL.createObjectURL(blob):'';
+      if(!url){showToast('此瀏覽器不支援匯出');return;}
+      var a=document.createElement('a'),stamp=new Date().toISOString().slice(0,10);
+      a.href=url;a.download='WILDS-save-'+stamp+'.json';document.body.appendChild(a);a.click();a.remove();
+      setTimeout(function(){window.URL.revokeObjectURL(url);},1000);
+      showToast('本機存檔備份已匯出');
+    });
+  }
+
+  function importBackup(file){
+    if(!file)return;
+    if(file.size>5*1024*1024){showToast('備份檔過大，已取消匯入');return;}
+    var reader=new FileReader();
+    reader.onload=function(){
+      var data;
+      try{data=JSON.parse(String(reader.result||''));}catch(e){showToast('備份格式無法解析');return;}
+      if(!window.confirm('匯入後會覆蓋目前本機進度，確定繼續？'))return;
+      W.Save.applyRemote(data).then(function(ok){
+        if(!ok){showToast('備份驗證失敗，未變更目前進度');return;}
+        W.Camera.snapTo(W.Player.wx,W.Player.wy);
+        if(W.Bosses)W.Bosses.init();
+        if(W.Guide)W.Guide.init();
+        if(W.Rewards)W.Rewards.sync(true);
+        applyCharacterSprite();_rewardSig='';
+        var body=document.getElementById('diag-body');if(body)body.textContent=diagText();
+        showToast('備份已驗證並匯入 ✓');
+      });
+    };
+    reader.onerror=function(){showToast('讀取備份失敗');};
+    reader.readAsText(file);
+  }
+
+  function openUpdatePanel(reg){
+    updateReg=reg||updateReg;
+    var p=document.getElementById('update-panel');if(p)p.classList.add('open');
+  }
+
+  function registerSafeUpdate(){
+    if(!('serviceWorker' in navigator))return;
+    navigator.serviceWorker.addEventListener('controllerchange',function(){
+      if(!reloadOnController)return;reloadOnController=false;window.location.reload();
+    });
+    navigator.serviceWorker.register('./sw.js').then(function(reg){
+      updateReg=reg;
+      if(reg.waiting&&navigator.serviceWorker.controller)openUpdatePanel(reg);
+      reg.addEventListener('updatefound',function(){
+        var worker=reg.installing;if(!worker)return;
+        worker.addEventListener('statechange',function(){
+          if(worker.state==='installed'&&navigator.serviceWorker.controller)openUpdatePanel(reg);
+        });
+      });
+    })['catch'](function(){});
+  }
+
   var _lastHp = -1;
   var _wasNight = false;
 
@@ -529,6 +935,7 @@ W.Game = (function() {
   }
 
   function onArrowHit(hit, wx, wy) {
+    if(W.Render&&W.Render.impact)W.Render.impact(wx,wy,!!(hit&&hit.killed));
     W.Render.dmgText(wx, wy - 10, '-' + hit.dmg);
     if (W.Sfx) { if (hit.killed) { W.Sfx.kill(); } else { W.Sfx.arrowHit(); } }
     if (hit.killed) {
@@ -644,43 +1051,49 @@ W.Game = (function() {
   }
 
   function loop(now) {
-    var dt = (now - last) / 1000;
+    var realDt = (now - last) / 1000;
     last = now;
-    if (dt > 0.1) dt = 0.1;
-    if (dt <= 0) dt = 0.016;
+    if (realDt > 0.1) realDt = 0.1;
+    if (realDt <= 0) realDt = 0.016;
+    var dt=W.Render&&W.Render.stepFrame?W.Render.stepFrame(realDt):realDt;
+    var modal=uiModalOpen(),simDt=modal?0:dt;
 
-    fpsAcc += 1 / dt;
+    fpsAcc += 1 / realDt;
     fpsCount++;
     if (fpsCount >= 10) { fps = fpsAcc / fpsCount; fpsAcc = 0; fpsCount = 0; }
 
     frame++;
+    if(W.Input.setLocked)W.Input.setLocked(modal);
     W.Input.update();
-    W.Time.update(dt);
-    W.Player.update(dt);
-    W.Stats.update(dt);
-    W.Mobs.update(dt);
-    W.Arrows.update(dt);
-    if (W.Sites) W.Sites.updateNear(W.Player.wx, W.Player.wy);
-    if (W.Bosses) W.Bosses.update(dt);
-    if (W.Mates) W.Mates.update(dt);
-    if (W.DivineArms) W.DivineArms.update(dt);
-    if (W.Calamity) W.Calamity.update(dt);
-    if (W.Skins) W.Skins.update(dt);
-    if (_bowCd > 0) _bowCd -= dt;
-    checkDeath(dt);
-    W.World.tick(frame);
-    W.Minimap.tick(dt);
-    tickToast(dt);
-    W.Save.tick(dt);
-    W.Cloud.tick(dt);
-    W.Camera.follow(W.Player.wx, W.Player.wy, dt);
-    W.Render.draw(dt);
-    updateHUD(dt);
-    updateActionBtn(dt);
-    noteAutosave(dt);
-    checkMilestones();
-    pollFeedback();
-    handleTap();
+    if(simDt>0){
+      W.Time.update(simDt);
+      W.Player.update(simDt);
+      W.Stats.update(simDt);
+      W.Mobs.update(simDt);
+      W.Arrows.update(simDt);
+      if (W.Sites) W.Sites.updateNear(W.Player.wx, W.Player.wy);
+      if (W.Bosses) W.Bosses.update(simDt);
+      if (W.Mates) W.Mates.update(simDt);
+      if (W.DivineArms) W.DivineArms.update(simDt);
+      if (W.Calamity) W.Calamity.update(simDt);
+      if (W.Guide) W.Guide.update(simDt);
+      if (W.Travel) W.Travel.update(simDt);
+      if (W.Journal) W.Journal.update(simDt);
+      if (W.Skins) W.Skins.update(simDt);
+      if (_bowCd > 0) _bowCd -= simDt;
+      checkDeath(simDt);
+      W.World.tick(frame);
+      W.Minimap.tick(simDt);
+    }
+    tickToast(realDt);
+    W.Save.tick(realDt);
+    W.Cloud.tick(realDt);
+    W.Camera.follow(W.Player.wx, W.Player.wy, simDt);
+    W.Render.draw(realDt);
+    updateHUD(realDt);
+    updateActionBtn(realDt);
+    noteAutosave(realDt);
+    if(!modal){checkMilestones();pollFeedback();handleTap();}
 
     requestAnimationFrame(loop);
   }
@@ -696,11 +1109,12 @@ W.Game = (function() {
     var ss = W.Sites ? W.Sites.stats() : { near: 0, looted: 0 };
     var mt = W.Mates ? W.Mates.stats() : { total: 0, recruited: 0, hungry: 0 };
     var bs2 = W.Bosses ? W.Bosses.stats() : { alive: 0, defeated: 0 };
+    var rw = W.Rewards ? W.Rewards.stats() : { honor:0, rank:'', skins:0, totalSkins:0, unseen:0 };
     return [
-      '=== WILDS 診斷 (Phase 1) ===',
+      '=== WILDS 診斷 (Phase 19) ===',
       '',
       'FPS          : ' + Math.round(fps),
-      'DPR          : ' + Math.min(window.devicePixelRatio || 1, W.CFG.MAX_DPR),
+      'DPR          : ' + Math.min(window.devicePixelRatio || 1, W.Settings.dprCap()),
       '視窗         : ' + window.innerWidth + ' x ' + window.innerHeight,
       'Canvas       : ' + canvas.width + ' x ' + canvas.height,
       '',
@@ -710,6 +1124,8 @@ W.Game = (function() {
       '',
       '輸入向量     : ' + W.Input.getX().toFixed(2) + ', ' + W.Input.getY().toFixed(2),
       '搖桿啟用     : ' + W.Input.isActive(),
+      '翻滾狀態     : ' + W.Player.isRolling() + '（冷卻 ' + W.Player.rollCooldown().toFixed(2) + ' 秒）',
+      '遊戲設定     : ' + JSON.stringify(W.Settings.stats()),
       '',
       '世界大小     : ' + W.CFG.WORLD_SIZE,
       '區塊大小     : ' + W.CFG.CHUNK_SIZE,
@@ -737,6 +1153,7 @@ W.Game = (function() {
       '\u5b58\u6a94\u7248\u672c     : v' + sv.version,
       '\u4e0a\u6b21\u5b58\u6a94     : ' + (sv.lastSaved ? new Date(sv.lastSaved).toLocaleString() : '\u5c1a\u672a\u5b58\u6a94'),
       '\u932f\u8aa4\u8a0a\u606f     : ' + (sv.lastError || '\u7121'),
+      '備份復原     : ' + (sv.lastRecovery || '未使用；保留最近兩份'),
       '\u81ea\u52d5\u5b58\u6a94     : \u6bcf ' + W.CFG.AUTOSAVE_INTERVAL + ' \u79d2\uff0b\u5207\u51fa\u80cc\u666f\u6642',
       '',
       '--- \u751f\u5b58 (Phase 5) ---',
@@ -761,7 +1178,7 @@ W.Game = (function() {
       '\u591c\u665a\u6a21\u5f0f     : ' + W.Time.isNight(),
       '\u4e00\u65e5\u9577\u5ea6     : ' + W.CFG.DAY_LENGTH + ' \u79d2',
       '',
-      '\u7d20\u6750\u8f09\u5165     : ' + ar.loaded + ' / ' + ar.total + '\uff08\u5931\u6557 ' + ar.failed + '\uff09',
+      '\u7d20\u6750\u8f09\u5165     : ' + ar.loaded + ' / ' + ar.requested + ' \u5df2\u8acb\u6c42\uff08\u5168\u90e8 ' + ar.total + '\uff0c\u5931\u6557 ' + ar.failed + '\uff09',
       (ar.failed ? '\u7f3a\u5c11\u7d20\u6750     : ' + ar.names.join('\u3001') : '\u7d20\u6750\u5b8c\u6574     : \u2713'),
       '',
       '\u7406\u667a         : ' + W.Stats.san().toFixed(0) + ' / 100' + (W.Stats.isLowSan() ? '\uff08\u904e\u4f4e\uff01\u9670\u5f71\u51fa\u6c92\uff09' : ''),
@@ -770,6 +1187,8 @@ W.Game = (function() {
       '\u9670\u5f71\u6578\u91cf     : ' + (ms.shadows || 0),
       '\u5925\u4f34         : ' + mt.recruited + ' / ' + mt.total + '\uff08\u9913 ' + mt.hungry + '\uff09',
       '\u9b54\u738b         : \u5b58\u6d3b ' + bs2.alive + '\u3001\u5df2\u64ca\u6557 ' + bs2.defeated,
+      '荒野榮譽     : ' + rw.honor + '（' + rw.rank + '）',
+      '傳說 Skin   : ' + rw.skins + ' / ' + rw.totalSkins + '（未讀 ' + rw.unseen + '）',
       '\u9130\u8fd1\u907a\u8de1     : ' + ss.near + '\uff08\u5df2\u641c\u5237 ' + ss.looted + ' \u5ea7\uff09',
       '',
       '--- \u96f2\u7aef (Phase 8) ---',
@@ -814,7 +1233,7 @@ W.Game = (function() {
      少了核心模組會噴出一連串看不懂的 TypeError，
      不如一次講清楚要補傳什麼檔案。 */
   var REQUIRED = [
-    ['CFG', 'config.js'], ['Rng', 'rng.js'], ['World', 'world.js'],
+    ['CFG', 'config.js'], ['Settings', 'settings.js'], ['Rng', 'rng.js'], ['World', 'world.js'],
     ['Inv', 'inventory.js'], ['Res', 'resources.js'], ['Build', 'build.js'],
     ['Craft', 'craft.js'], ['Time', 'time.js'], ['Camera', 'camera.js'],
     ['Input', 'input.js'], ['Player', 'player.js'], ['Render', 'render.js'],
@@ -822,7 +1241,8 @@ W.Game = (function() {
     ['Arrows', 'arrows.js'], ['Minimap', 'minimap.js'], ['Art', 'art.js'],
     ['Cloud', 'cloud.js'], ['Sfx', 'sfx.js'], ['Sites', 'sites.js'], ['Store', 'store.js'],
     ['Mates', 'companions.js'], ['DivineArms', 'divine-arms.js'],
-    ['Bosses', 'bosses.js'], ['Calamity', 'calamity.js'], ['Skins', 'skins.js']
+    ['Bosses', 'bosses.js'], ['Calamity', 'calamity.js'], ['Guide', 'guide.js'], ['Travel', 'travel.js'],
+    ['Journal', 'journal.js'], ['Skins', 'skins.js'], ['Rewards', 'rewards.js']
   ];
 
   function checkModules() {
@@ -866,6 +1286,7 @@ W.Game = (function() {
     elFps   = document.getElementById('hud-fps');
     elToast = document.getElementById('toast');
     _btnA   = document.getElementById('btn-a');
+    _btnRoll = document.getElementById('btn-roll');
     elHp    = document.getElementById('bar-hp');
     elFood  = document.getElementById('bar-food');
     elStam  = document.getElementById('bar-stam');
@@ -873,7 +1294,15 @@ W.Game = (function() {
     elTime  = document.getElementById('hud-time');
     elMates = document.getElementById('hud-mates');
     elDivine = document.getElementById('hud-divine');
+    elGuideTitle = document.getElementById('guide-title');
+    elGuideHint = document.getElementById('guide-hint');
+    elJournalTrackTitle = document.getElementById('journal-track-title');
+    elJournalTrackText = document.getElementById('journal-track-text');
+    elJournalTrackFill = document.getElementById('journal-track-fill');
 
+    W.Settings.load();
+    if(W.Sfx&&W.Sfx.setVolume)W.Sfx.setVolume(W.Settings.get('sfxVolume'));
+    syncMuteButton();
     W.Render.init(ctx);
     loadCharPref();
     W.Input.init();
@@ -886,6 +1315,41 @@ W.Game = (function() {
     });
 
     on('btn-a', 'pointerdown', function(e) { e.preventDefault(); doAction(); });
+    on('btn-roll', 'pointerdown', function(e) { e.preventDefault(); doRoll(); });
+    window.addEventListener('keydown',function(e){
+      if((e.key===' '||e.code==='Space')&&!e.repeat){e.preventDefault();doRoll();}
+    });
+
+    on('btn-guide', 'click', function() {
+      if (!W.Guide) return;
+      showToast(W.Guide.cycle());
+      updateGuideHud();
+    });
+    on('btn-travel', 'click', openTravel);
+    on('btn-equip', 'click', openEquipment);
+    on('btn-journal', 'click', openJournal);
+    on('btn-rewards', 'click', openRewards);
+    on('btn-settings', 'click', openSettings);
+    on('travel-close', 'click', closeTravel);
+    on('equip-close', 'click', closeEquipment);
+    on('journal-close', 'click', closeJournal);
+    on('reward-close', 'click', closeRewards);
+    on('settings-close', 'click', closeSettings);
+    on('settings-list', 'click', onSettingsClick);
+    on('settings-reset', 'click', function(){W.Settings.reset();renderSettings();resize();syncMuteButton();showToast('已恢復預設設定');});
+    on('conflict-close', 'click', closeCloudConflict);
+    on('conflict-keep-local', 'click', function(){
+      closeCloudConflict();W.Save.save().then(function(){return W.Cloud.upload();}).then(function(r){cloudResult(r,'已保留本機進度並上傳');});
+    });
+    on('conflict-use-cloud', 'click', function(){
+      closeCloudConflict();W.Cloud.download(true).then(function(r){if(r===true)W.Camera.snapTo(W.Player.wx,W.Player.wy);cloudResult(r,'已使用雲端進度');});
+    });
+    on('travel-list', 'click', onTravelClick);
+    on('tool-grid', 'click', onEquipmentClick);
+    on('divine-grid', 'click', onEquipmentClick);
+    on('journal-list', 'click', onJournalClick);
+    on('reward-list', 'click', onRewardClick);
+    on('reward-journal-link', 'click', function(){closeRewards();openJournal();});
 
     on('btn-eat-berry', 'click', function() {
       eat('berry', W.CFG.EAT_BERRY_FOOD, 0, 0);
@@ -959,7 +1423,7 @@ W.Game = (function() {
     on('btn-mute', 'click', function() {
       var m = !W.Sfx.isMuted();
       W.Sfx.setMuted(m);
-      this.textContent = m ? '\uD83D\uDD07' : '\uD83D\uDD0A';
+      syncMuteButton();
     });
 
     on('craft-close', 'click', closeCraft);
@@ -1017,14 +1481,7 @@ W.Game = (function() {
     on('btn-down', 'click', function() {
       W.Cloud.download(false).then(function(r) {
         if (r === 'newer-local') {
-          if (!window.confirm('\u672c\u6a5f\u9032\u5ea6\u6bd4\u96f2\u7aef\u65b0\uff0c\u78ba\u5b9a\u8981\u7528\u820a\u7684\u96f2\u7aef\u5b58\u6a94\u8986\u84cb\u55ce\uff1f')) {
-            showToast('\u5df2\u53d6\u6d88');
-            return;
-          }
-          W.Cloud.download(true).then(function(r2) {
-            if (r2 === true) { W.Camera.snapTo(W.Player.wx, W.Player.wy); }
-            cloudResult(r2, '\u5df2\u5f9e\u96f2\u7aef\u4e0b\u8f09');
-          });
+          openCloudConflict();
           return;
         }
         if (r === true) { W.Camera.snapTo(W.Player.wx, W.Player.wy); }
@@ -1042,6 +1499,20 @@ W.Game = (function() {
       W.Save.load().then(function(r) {
         if (r) { W.Camera.snapTo(W.Player.wx, W.Player.wy); }
         showToast(r ? '\u5b58\u6a94\u5df2\u8b80\u53d6 \u2713' : '\u627e\u4e0d\u5230\u5b58\u6a94');
+      });
+    });
+
+    on('btn-export','click',exportBackup);
+    on('btn-import','click',function(){var f=document.getElementById('save-file-input');if(f)f.click();});
+    on('save-file-input','change',function(){var f=this.files&&this.files[0];importBackup(f);this.value='';});
+    on('btn-update-later','click',function(){document.getElementById('update-panel').classList.remove('open');});
+    on('btn-update-now','click',function(){
+      var b=this;b.disabled=true;b.textContent='正在保存…';
+      W.Save.save().then(function(ok){
+        if(!ok){b.disabled=false;b.textContent='存檔並立即更新';showToast('存檔失敗，暫不切換版本');return;}
+        var worker=updateReg&&updateReg.waiting;
+        if(!worker){b.disabled=false;b.textContent='存檔並立即更新';showToast('更新尚未準備完成');return;}
+        reloadOnController=true;b.textContent='正在更新…';worker.postMessage({type:'SKIP_WAITING'});
       });
     });
 
@@ -1065,9 +1536,7 @@ W.Game = (function() {
       if (document.visibilityState === 'hidden') { W.Save.save(); W.Cloud.upload(); }
     });
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(function() {});
-    }
+    registerSafeUpdate();
 
     safe('\u5925\u4f34\u521d\u59cb\u5316', function() {
       W.Mates.init();
@@ -1086,18 +1555,34 @@ W.Game = (function() {
         ? ('🏆 擊敗 ' + b.def.name + (b.rewardUnlocked ? '！獲得神武' : '！神武已持有'))
         : ('🏆 擊敗 ' + b.def.name + '！牢籠開了'));
       if (W.Sfx) W.Sfx.kill();
+      if(W.Rewards)W.Rewards.sync(false);
       W.Save.save();
     };
     W.Game.onBossHitPlayer = function() {
+      if(W.Render&&W.Render.shake)W.Render.shake(7,0.22);
+      if(W.Settings)W.Settings.vibrate(35);
       if (W.Sfx) W.Sfx.hurt();
+    };
+    W.Game.onPerfectDodge = function(info) {
+      showToast('✨ 完美閃避！體力 +12，下一擊傷害 +18');
+      if(W.Render){if(W.Render.slowMotion)W.Render.slowMotion(0.32,0.32);if(W.Render.dodgeFx)W.Render.dodgeFx(info.wx,info.wy,-W.Player.faceX,-W.Player.faceY);}
+      if(W.Sfx&&W.Sfx.perfectDodge)W.Sfx.perfectDodge();
+      if(W.Settings)W.Settings.vibrate([18,30,18]);
+    };
+    W.Game.onBossPhase = function(b,phase) {
+      showToast('⚠️ '+b.def.name+' 進入第 '+phase+' 階段，攻擊加速！');
+      if(W.Render&&W.Render.phaseFx)W.Render.phaseFx(b.wx,b.wy);
+      if(W.Render&&W.Render.flash)W.Render.flash('rgba(135,70,180,0.25)',0.24);
+      if(W.Sfx)W.Sfx.hurt();
     };
 
     W.Game.onDivineArmUnlock = function(def) {
       showToast('✨ 獲得「' + def.name + '」並自動裝備');
       if (W.Sfx) W.Sfx.kill();
+      if(W.Rewards)W.Rewards.sync(false);
     };
     W.Game.onDivineHit = function(kind, hit, wx, wy) {
-      if (hit && W.Render) W.Render.dmgText(wx, wy - 14, '-' + hit.dmg);
+      if (hit && W.Render) { W.Render.dmgText(wx, wy - 14, '-' + hit.dmg);if(W.Render.impact)W.Render.impact(wx,wy,!!hit.killed); }
       if (W.Sfx) W.Sfx.hit();
     };
     W.Game.onSwordWave = function(seen, fromGun, boosted) {
@@ -1131,12 +1616,21 @@ W.Game = (function() {
     W.Game.onCalamityGateOpen = function() {
       showToast('☄️ 世界災禍祭壇甦醒了');
     };
+    W.Game.onCalamitySummonStart = function(r) {
+      showToast('☄️ 正在召喚「'+r.name+'」：'+r.seconds+' 秒內不要離開，再按一次可取消');
+      if(W.Render&&W.Render.flash)W.Render.flash('rgba(210,80,45,0.22)',0.3);
+    };
+    W.Game.onCalamitySummonCancel = function(reason) {
+      showToast(reason||'召喚已取消');_btnMode='';
+    };
     W.Game.onCalamitySummoned = function(b) {
       var cs=W.Calamity&&W.Calamity.stats?W.Calamity.stats():null;
       if(cs&&cs.activeAscended)showToast('🔥 飛升災禍 Lv.'+(cs.ascensionCycle+1)+'：'+b.name+' 強化降臨');
       else showToast(b&&b.id==='titan'?'⚠️ 骸骨泰坦降臨！躲避骨刺與震波':'⚠️ 萬眼巨鯤降臨！避開深淵與隕石');
       W.Render.flash('rgba(105,45,135,0.5)');
+      if(W.Render&&W.Render.shake)W.Render.shake(11,0.5);
       if (W.Sfx) W.Sfx.hurt();
+      W.Save.save();
     };
     W.Game.onCalamityDown = function(b) {
       showToast(b&&b.id==='titan'?'🏆 擊敗骸骨泰坦！兩大災禍已平息':'🏆 擊敗萬眼巨鯤！祭壇出現更強大的氣息');
@@ -1144,18 +1638,50 @@ W.Game = (function() {
       if (W.Sfx) W.Sfx.kill();
       W.Save.save();
     };
+    W.Game.onCalamityPhase = function(b,phase) {
+      showToast('☄️ '+b.name+' 進入 Phase '+phase+'，新的災禍攻勢展開');
+      if(W.Render&&W.Render.phaseFx)W.Render.phaseFx(b.wx,b.wy);
+      if(W.Render&&W.Render.flash)W.Render.flash('rgba(155,70,215,0.32)',0.28);
+      if(W.Sfx)W.Sfx.hurt();
+    };
     W.Game.onAscensionReward = function(r) {
       showToast('💠 飛升輪迴 '+r.cycle+' 完成！神格碎片 +1（神武與 Skin 永久強化）');
       W.Render.flash('rgba(255,205,100,0.55)');
       if(W.Sfx)W.Sfx.kill();
+      if(W.Rewards)W.Rewards.sync(false);
       W.Save.save();
     };
     W.Game.onSkinUnlock = function(def) {
       showToast('🌌 解鎖 Skin：「' + def.name + '」並自動裝備');
+      applyCharacterSprite();_rewardSig='';
+      if(rewardOpen)renderRewards();
+      W.Save.save();
+    };
+    W.Game.onSkinEquip = function(def) {
+      applyCharacterSprite();
+      showToast(def?'已裝備 Skin：「'+def.name+'」':'已卸下 Skin，恢復原始造型');
+      if(rewardOpen)renderRewards();
       W.Save.save();
     };
     W.Game.onSkinPulse = function(def) {
-      W.Render.flash(def&&def.id==='death'?'rgba(170,150,120,0.18)':'rgba(75,35,110,0.18)');
+      var c=def&&def.id==='death'?'rgba(170,150,120,0.18)':(def&&def.id==='star'?'rgba(110,175,255,0.2)':'rgba(75,35,110,0.18)');
+      W.Render.flash(c);
+    };
+    W.Game.onSkinPhoenix = function() {
+      showToast('🔥 不死鳥涅槃！本次飛升輪迴的涅槃已使用');
+      W.Render.flash('rgba(255,105,30,0.5)',0.45);
+      if(W.Sfx)W.Sfx.kill();
+      W.Save.save();
+    };
+    W.Game.onWaypointDiscovered = function(p) {
+      showToast('🌀 解鎖快速移動：' + p.name);
+      W.Save.save();
+    };
+    W.Game.onJournalUpdated = function(info) {
+      _journalSig = '';
+      showToast('📜 冒險日誌更新：完成「' + info.last.title + '」');
+      if (journalOpen) renderJournal();
+      W.Save.save();
     };
 
     safe('\u96f2\u7aef\u521d\u59cb\u5316', function() {
@@ -1169,6 +1695,11 @@ W.Game = (function() {
       if (!loaded) W.Player.spawn();
       W.Camera.snapTo(W.Player.wx, W.Player.wy);
       if (W.Bosses) W.Bosses.init();
+      if (W.Guide) W.Guide.init();
+      if (W.Travel) W.Travel.update(1);
+      if (W.Journal) W.Journal.update(1);
+      if (W.Rewards) W.Rewards.sync(true);
+      applyCharacterSprite();_rewardSig='';
       var ov = W.Save.info().overflow || 0;
       if (ov > 0) {
         showToast('\u80cc\u5305\u8d85\u91cd\uff0c' + ov + ' \u4ef6\u5df2\u79fb\u5165\u5132\u7269\u7bb1\uff08\u84cb\u4e00\u500b\u5c31\u80fd\u53d6\u56de\uff09');
@@ -1185,7 +1716,8 @@ W.Game = (function() {
   }
 
   function onHurt() {
-    if (navigator.vibrate) { navigator.vibrate(30); }
+    if(W.Settings)W.Settings.vibrate(30);
+    if(W.Render&&W.Render.shake)W.Render.shake(5,0.18);
     if (W.Stats.hpPct() < 0.3) showToast('\u751f\u547d\u5371\u96aa\uff01\u5feb\u9003\u6216\u9032\u98df');
   }
 

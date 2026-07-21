@@ -161,6 +161,42 @@ W.Cloud = (function() {
     });
   }
 
+  function flagCount(o, prefix) {
+    var n = 0, k;
+    if (!o || typeof o !== 'object') return 0;
+    for (k in o) if (o.hasOwnProperty(k) && o[k] && (!prefix || k.indexOf(prefix) === 0)) n++;
+    return n;
+  }
+
+  function progressSummary(data, savedAt) {
+    data = data || {};
+    var cal = data.calamity || {}, journal = data.journal || {}, skins = data.skins || {};
+    return {
+      savedAt: savedAt || data.savedAt || 0,
+      day: data.time && isFinite(data.time.day) ? Math.max(1, Math.floor(data.time.day)) : 1,
+      bosses: flagCount(data.bosses),
+      regions: flagCount(data.bosses, 'region:'),
+      divine: flagCount(data.divineArms && data.divineArms.owned),
+      skins: flagCount(skins.owned),
+      journal: flagCount(journal.claimed),
+      ascension: Math.max(0, Math.floor(Number(cal.ascensionCycle) || 0)),
+      shards: Math.max(0, Math.floor(Number(cal.divinityShards) || 0))
+    };
+  }
+
+  /* 僅比較摘要，不套用任何資料。覆蓋仍必須由玩家按下明確選項。 */
+  function compare() {
+    if (!ready) return Promise.resolve('\u96f2\u7aef\u672a\u555f\u7528');
+    if (!uid) return Promise.resolve('\u5c1a\u672a\u767b\u5165');
+    return Promise.all([W.Save.snapshot(), fetchRemote()]).then(function(all) {
+      if (!all[1]) return '\u96f2\u7aef\u6c92\u6709\u5b58\u6a94';
+      return {
+        local: progressSummary(all[0], all[0] && all[0].savedAt),
+        remote: progressSummary(all[1].data, all[1].savedAt)
+      };
+    });
+  }
+
   /* 自動同步：新的一方覆蓋舊的一方 */
   function syncNow() {
     if (!ready || !uid) return Promise.resolve(false);
@@ -213,6 +249,7 @@ W.Cloud = (function() {
     signOut: signOut,
     upload: upload,
     download: download,
+    compare: compare,
     syncNow: syncNow,
     markDirty: markDirty,
     tick: tick,

@@ -33,7 +33,7 @@ W.Stats = (function() {
     if (hurtT > 0) hurtT -= dt;
     if (invT > 0) invT -= dt;
 
-    if (hp <= 0) { hp = 0; dead = true; }
+    if (hp <= 0) handleLethal();
   }
 
   /* 理智值：夜裡會掉，靠近營火回得比掉得快，白天緩慢自然回復。
@@ -69,17 +69,28 @@ W.Stats = (function() {
   function damage(n) {
     if (dead) return false;
     if (invT > 0) return false;
+    if (W.Player && W.Player.isRolling && W.Player.isRolling()) {
+      if (W.Player.evadeDamage) W.Player.evadeDamage(n);
+      return false;
+    }
     /* 一般生物原本會直接呼叫 Stats.damage；在核心入口再檢查一次，
        讓神盾與神翼不只對 Boss／災禍攻擊生效。Boss 已先吸收成功時不會走到此處。 */
     if (W.DivineArms && W.DivineArms.absorbDamage) {
       n = W.DivineArms.absorbDamage(n, 'world-attack');
       if (n <= 0) return false;
     }
+    if(W.Skins&&W.Skins.enemyDamageMultiplier)n*=W.Skins.enemyDamageMultiplier();
     invT = W.CFG.HURT_IFRAME;
     hp -= n;
     hurtT = 0.35;
-    if (hp <= 0) { hp = 0; dead = true; }
+    if (hp <= 0) handleLethal();
     return true;
+  }
+
+  function handleLethal() {
+    var pct=W.Skins&&W.Skins.tryPhoenixRevive?W.Skins.tryPhoenixRevive():0;
+    if(pct>0){hp=hpMax*pct;food=Math.max(food,foodMax*.25);stam=stamMax;dead=false;hurtT=0;invT=1.6;return true;}
+    hp=0;dead=true;return false;
   }
 
   function spend(n) {
@@ -88,12 +99,17 @@ W.Stats = (function() {
     return true;
   }
 
+  function addStam(n) {
+    stam = Math.max(0, Math.min(stamMax, stam + Number(n || 0)));
+    return stam;
+  }
+
   function eat(food_add, hp_delta) {
     food += food_add;
     if (food > foodMax) food = foodMax;
     hp += hp_delta;
     if (hp > hpMax) hp = hpMax;
-    if (hp <= 0) { hp = 0; dead = true; }
+    if (hp <= 0) handleLethal();
   }
 
   function revive() {
@@ -123,6 +139,7 @@ W.Stats = (function() {
     update: update,
     damage: damage,
     spend: spend,
+    addStam: addStam,
     eat: eat,
     revive: revive,
     exportData: exportData,

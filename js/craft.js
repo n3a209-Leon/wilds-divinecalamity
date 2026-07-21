@@ -4,7 +4,7 @@ window.W = window.W || {};
    新增欄位時務必同步 save.js 的 collect / apply / migrate 三處。 */
 W.Craft = (function() {
 
-  var gear = { axe: false, pick: false, bow: false, maxe: false, mpick: false };
+  var gear = { axe: false, pick: false, bow: false, maxe: false, mpick: false, equipped: '' };
 
   /* kind: tool = 取得裝備；place = 放置建造物；item = 產出物品
      need: 需要站在某種建造物旁（null 代表隨處可做） */
@@ -81,6 +81,8 @@ W.Craft = (function() {
       if (r.needGear && !gear[r.needGear]) return '\u9700\u8981\u5148\u88fd\u4f5c\u524d\u7f6e\u5de5\u5177';
       pay(r);
       gear[r.id] = true;
+      /* 新製作的工具直接拿到手上；之後可在裝備面板自由切換。 */
+      gear.equipped = r.id;
       return true;
     }
 
@@ -113,25 +115,34 @@ W.Craft = (function() {
 
   function has(id) { return !!gear[id]; }
 
+  function equip(id) {
+    if (!id || id === 'none') { gear.equipped = ''; return true; }
+    if (!gear.hasOwnProperty(id) || id === 'equipped' || !gear[id]) return false;
+    gear.equipped = id;
+    return true;
+  }
+
+  function equipped() { return gear.equipped || ''; }
+
   function attackBonus() {
-    if (gear.maxe) return W.CFG.METAL_ATK_BONUS;
-    return gear.axe ? W.CFG.AXE_ATK_BONUS : 0;
+    if (gear.equipped === 'maxe') return W.CFG.METAL_ATK_BONUS;
+    return gear.equipped === 'axe' ? W.CFG.AXE_ATK_BONUS : 0;
   }
 
   function yieldBonus(resType) {
     if (resType === 0) {
-      if (gear.maxe) return W.CFG.METAL_YIELD_BONUS;
-      if (gear.axe) return W.CFG.TOOL_YIELD_BONUS;
+      if (gear.equipped === 'maxe') return W.CFG.METAL_YIELD_BONUS;
+      if (gear.equipped === 'axe') return W.CFG.TOOL_YIELD_BONUS;
     }
     if (resType === 1) {
-      if (gear.mpick) return W.CFG.METAL_YIELD_BONUS;
-      if (gear.pick) return W.CFG.TOOL_YIELD_BONUS;
+      if (gear.equipped === 'mpick') return W.CFG.METAL_YIELD_BONUS;
+      if (gear.equipped === 'pick') return W.CFG.TOOL_YIELD_BONUS;
     }
     return 0;
   }
 
   function exportData() {
-    return { axe: !!gear.axe, pick: !!gear.pick, bow: !!gear.bow, maxe: !!gear.maxe, mpick: !!gear.mpick };
+    return { axe: !!gear.axe, pick: !!gear.pick, bow: !!gear.bow, maxe: !!gear.maxe, mpick: !!gear.mpick, equipped: gear.equipped || '' };
   }
 
   function importData(o) {
@@ -140,6 +151,15 @@ W.Craft = (function() {
     gear.bow = !!(o && o.bow);
     gear.maxe = !!(o && o.maxe);
     gear.mpick = !!(o && o.mpick);
+    gear.equipped = (o && typeof o.equipped === 'string' && gear[o.equipped]) ? o.equipped : '';
+    /* 舊存檔沒有主手欄位：優先拿最高級近戰工具，不讓原有戰力突然消失。 */
+    if (!gear.equipped) {
+      if (gear.maxe) gear.equipped = 'maxe';
+      else if (gear.axe) gear.equipped = 'axe';
+      else if (gear.bow) gear.equipped = 'bow';
+      else if (gear.mpick) gear.equipped = 'mpick';
+      else if (gear.pick) gear.equipped = 'pick';
+    }
   }
 
   function clear() {
@@ -148,12 +168,15 @@ W.Craft = (function() {
     gear.bow = false;
     gear.maxe = false;
     gear.mpick = false;
+    gear.equipped = '';
   }
 
   return {
     list: list,
     make: make,
     has: has,
+    equip: equip,
+    equipped: equipped,
     canAfford: canAfford,
     costText: costText,
     attackBonus: attackBonus,

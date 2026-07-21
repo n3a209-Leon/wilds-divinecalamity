@@ -8,6 +8,7 @@ W.Sfx = (function() {
   var ac = null;
   var master = null;
   var muted = false;
+  var volume = W.Settings ? W.Settings.get('sfxVolume') : 0.5;
 
   function ensure() {
     if (ac) return true;
@@ -16,7 +17,7 @@ W.Sfx = (function() {
       if (!AC) return false;
       ac = new AC();
       master = ac.createGain();
-      master.gain.value = 0.5;
+      master.gain.value = volume;
       master.connect(ac.destination);
     } catch (e) { return false; }
     return true;
@@ -66,6 +67,12 @@ W.Sfx = (function() {
   return {
     unlock: unlock,
     setMuted: function(m) { muted = m; },
+    setVolume: function(v) {
+      v = Number(v); volume = isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.5;
+      if (master) master.gain.value = volume;
+      return volume;
+    },
+    volume: function() { return volume; },
     isMuted: function() { return muted; },
     isReady: function() { return !!ac && ac.state === 'running'; },
     tap:      function() { tone(660, 0.05, 'square', 0.10); },
@@ -78,6 +85,8 @@ W.Sfx = (function() {
     hurt:     function() { tone(120, 0.22, 'sawtooth', 0.32, 0.6); },
     sleep:    function() { tone(520, 0.5, 'sine', 0.16, 0.55); },
     night:    function() { tone(340, 0.7, 'sine', 0.14, 0.5); tone(255, 0.7, 'sine', 0.10, 0.5); },
+    dodge:    function() { tone(760, 0.12, 'triangle', 0.18, 0.46); noise(0.08, 0.10); },
+    perfectDodge: function() { tone(980, 0.08, 'sine', 0.22, 1.28); tone(1320, 0.16, 'triangle', 0.16, 0.82); },
     place:    function() { tone(240, 0.09, 'square', 0.24, 1.4); }
   };
 })();

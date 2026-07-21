@@ -36,7 +36,7 @@ W.Bosses = (function() {
   for (i0 = 0; i0 < DEFS.length; i0++) {
     bosses.push({
       def: DEFS[i0], site: null, wx: 0, wy: 0, hp: DEFS[i0].hp,
-      alive: false, hurt: 0, atkT: 0, skillT: 0, phase: 1, atkFx: 0,
+      alive: false, hurt: 0, atkT: 0, skillT: 0, skillWind: 0, phase: 1, lastPhase: 1, atkFx: 0,
       rewardUnlocked: false,
       faceX: 1, faceY: 0
     });
@@ -76,7 +76,9 @@ W.Bosses = (function() {
     b.atkT = 0;
     b.atkFx = 0;
     b.skillT = b.def.kind === 'regional' ? 2.2 : 0;
+    b.skillWind = 0;
     b.phase = 1;
+    b.lastPhase = 1;
     b.rewardUnlocked = false;
   }
 
@@ -90,9 +92,24 @@ W.Bosses = (function() {
       if (b.atkFx > 0) b.atkFx -= dt;
       b.atkT -= dt;
       b.skillT -= dt;
-      if (b.def.kind === 'regional') updateRegional(b, dt);
+      if (b.def.kind === 'regional') { updateRegional(b, dt); checkPhase(b); }
       else updateGuard(b, dt);
     }
+  }
+
+  function checkPhase(b) {
+    if (b.phase === b.lastPhase) return;
+    var old = b.lastPhase;
+    b.lastPhase = b.phase;
+    if (b.phase > old && W.Game && W.Game.onBossPhase) W.Game.onBossPhase(b, b.phase);
+  }
+
+  /* 計時歸零後不直接放招，先進入 0.62 秒可讀前搖；離開領地時不會偷跑前搖。 */
+  function skillReady(b, dt) {
+    if (b.skillT > 0) { b.skillWind = 0; return false; }
+    if (b.skillWind <= 0) { b.skillWind = 0.62; return false; }
+    b.skillWind -= dt;
+    return b.skillWind <= 0;
   }
 
   function updateRegional(b, dt) {
@@ -128,7 +145,7 @@ W.Bosses = (function() {
     b.faceX = dx / d; b.faceY = dy / d;
     if (d > 150) moveToward(b, dx, dy, d, 76 + b.phase * 10, dt);
 
-    if (b.skillT <= 0) {
+    if (skillReady(b, dt)) {
       if (b.phase === 1) hydraVolley(b, 5, 260);
       else if (b.phase === 2) { hydraVolley(b, 7, 300); spawnPool(W.Player.wx, W.Player.wy); }
       else { hydraVolley(b, 9, 340); spawnPool(W.Player.wx, W.Player.wy); spawnPool(W.Player.wx + 70, W.Player.wy - 35); }
@@ -153,7 +170,7 @@ W.Bosses = (function() {
     if (d > 190) moveToward(b, dx, dy, d, 72 + b.phase * 10, dt);
     else if (d < 112) moveToward(b, -dx, -dy, d, 42, dt);
 
-    if (b.skillT <= 0) {
+    if (skillReady(b, dt)) {
       frostVolley(b, b.phase === 1 ? 4 : (b.phase === 2 ? 6 : 8), 280 + b.phase * 25);
       if (b.phase >= 2) spawnPool(W.Player.wx, W.Player.wy, 'frost', 54 + b.phase * 5, 3.4, 6, 0.75);
       if (b.phase === 3) spawnPool(W.Player.wx + 72, W.Player.wy - 36, 'frost', 48, 3.0, 6, 0.75);
@@ -177,7 +194,7 @@ W.Bosses = (function() {
     b.faceX = dx / d; b.faceY = dy / d;
     if (d > 102) moveToward(b, dx, dy, d, 48 + b.phase * 8, dt);
 
-    if (b.skillT <= 0) {
+    if (skillReady(b, dt)) {
       rotVolley(b, b.phase === 1 ? 1 : (b.phase === 2 ? 3 : 5), 205 + b.phase * 18);
       spawnPool(W.Player.wx, W.Player.wy, 'rot', 58 + b.phase * 6, 4.6, 7, 0.7);
       if (b.phase === 3) {
@@ -206,7 +223,7 @@ W.Bosses = (function() {
     if (d > 175) moveToward(b, dx, dy, d, 118 + b.phase * 13, dt);
     else if (d < 105) moveToward(b, -dx, -dy, d, 92, dt);
 
-    if (b.skillT <= 0) {
+    if (skillReady(b, dt)) {
       thunderVolley(b, b.phase === 1 ? 5 : (b.phase === 2 ? 7 : 9), 330 + b.phase * 30);
       if (b.phase >= 2) spawnPool(W.Player.wx, W.Player.wy, 'wind', 62 + b.phase * 4, 2.2, 8, 0.62);
       b.skillT = b.phase === 3 ? 1.15 : (b.phase === 2 ? 1.55 : 2.05);
@@ -229,7 +246,7 @@ W.Bosses = (function() {
     b.faceX = dx / d; b.faceY = dy / d;
     if (d > 118) moveToward(b, dx, dy, d, 48 + b.phase * 8, dt);
 
-    if (b.skillT <= 0) {
+    if (skillReady(b, dt)) {
       lavaVolley(b, b.phase === 1 ? 3 : (b.phase === 2 ? 5 : 7), 220 + b.phase * 22);
       spawnPillars(b.phase === 1 ? 3 : (b.phase === 2 ? 5 : 7), b.phase);
       spawnPool(W.Player.wx, W.Player.wy, 'lava', 54 + b.phase * 6, 4.2, 9 + b.phase, 0.62);
@@ -260,6 +277,7 @@ W.Bosses = (function() {
   }
 
   function moveToward(b, dx, dy, d, speed, dt) {
+    if(W.Skins&&W.Skins.enemySpeedMultiplier)speed*=W.Skins.enemySpeedMultiplier(b.wx,b.wy);
     b.wx += dx / d * speed * dt;
     b.wy += dy / d * speed * dt;
     b.faceX = dx / d; b.faceY = dy / d;
@@ -391,8 +409,7 @@ W.Bosses = (function() {
   function damagePlayer(amount, source) {
     var dmg = W.DivineArms ? W.DivineArms.absorbDamage(amount, source) : amount;
     if (dmg > 0) {
-      W.Stats.damage(dmg);
-      if (W.Game && W.Game.onBossHitPlayer) W.Game.onBossHitPlayer();
+      if (W.Stats.damage(dmg) && W.Game && W.Game.onBossHitPlayer) W.Game.onBossHitPlayer();
     }
   }
 

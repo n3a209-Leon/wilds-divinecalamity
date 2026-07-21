@@ -9,15 +9,19 @@ W.Save = (function() {
   var DB_NAME = 'wilds';
   var STORE = 'kv';
   var KEY = 'save';
-  var VERSION = 14;
+  var BACKUP_1 = 'save_backup_1';
+  var BACKUP_2 = 'save_backup_2';
+  var VERSION = 19;
 
   var db = null;
   var ok = false;
   var reason = '\u5c1a\u672a\u521d\u59cb\u5316';
   var lastSaved = 0;
   var lastError = '';
+  var lastRecovery = '';
   var lastOverflow = 0;
   var autoT = 0;
+  var writeChain = Promise.resolve(true);
 
   function open() {
     return new Promise(function(resolve) {
@@ -48,49 +52,53 @@ W.Save = (function() {
     });
   }
 
-  function put(val) {
+  function putAt(key, val) {
     return new Promise(function(resolve) {
       if (!db) { resolve(false); return; }
       var tx, st, rq;
       try {
         tx = db.transaction(STORE, 'readwrite');
         st = tx.objectStore(STORE);
-        rq = st.put(val, KEY);
+        rq = st.put(val, key);
       } catch (err) {
         lastError = String(err);
         resolve(false);
         return;
       }
       rq.onsuccess = function() { resolve(true); };
-      rq.onerror = function() { lastError = 'put \u5931\u6557'; resolve(false); };
+      rq.onerror = function() { lastError = 'put ' + key + ' \u5931\u6557'; resolve(false); };
     });
   }
 
-  function read() {
+  function put(val) { return putAt(KEY, val); }
+
+  function readAt(key) {
     return new Promise(function(resolve) {
       if (!db) { resolve(null); return; }
       var tx, st, rq;
       try {
         tx = db.transaction(STORE, 'readonly');
         st = tx.objectStore(STORE);
-        rq = st.get(KEY);
+        rq = st.get(key);
       } catch (err) {
         lastError = String(err);
         resolve(null);
         return;
       }
       rq.onsuccess = function() { resolve(rq.result || null); };
-      rq.onerror = function() { lastError = 'get \u5931\u6557'; resolve(null); };
+      rq.onerror = function() { lastError = 'get ' + key + ' \u5931\u6557'; resolve(null); };
     });
   }
 
-  function remove() {
+  function read() { return readAt(KEY); }
+
+  function removeAt(key) {
     return new Promise(function(resolve) {
       if (!db) { resolve(false); return; }
       var tx, rq;
       try {
         tx = db.transaction(STORE, 'readwrite');
-        rq = tx.objectStore(STORE).delete(KEY);
+        rq = tx.objectStore(STORE).delete(key);
       } catch (err) {
         resolve(false);
         return;
@@ -98,6 +106,53 @@ W.Save = (function() {
       rq.onsuccess = function() { resolve(true); };
       rq.onerror = function() { resolve(false); };
     });
+  }
+
+  function remove() { return removeAt(KEY); }
+
+  /* 新存檔帶輕量校驗碼；舊版本沒有校驗碼仍可正常遷移。 */
+  function checksumOf(data) {
+    if (!data || typeof data !== 'object') return '';
+    var had = Object.prototype.hasOwnProperty.call(data, 'checksum');
+    var old = data.checksum;
+    data.checksum = '';
+    var s;
+    try { s = JSON.stringify(data); }
+    catch (err) { s = ''; }
+    if (had) data.checksum = old; else delete data.checksum;
+    var h = 2166136261, i;
+    for (i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return ('00000000' + (h >>> 0).toString(16)).slice(-8);
+  }
+
+  function seal(data) {
+    if (!data || typeof data !== 'object') return data;
+    data.checksum = '';
+    data.checksum = checksumOf(data);
+    return data;
+  }
+
+  function valid(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+    if (data.v !== undefined && (!isFinite(data.v) || data.v < 0 || data.v > VERSION)) return false;
+    if (data.checksum && data.checksum !== checksumOf(data)) return false;
+    return true;
+  }
+
+  function rotateAndPut(data) {
+    return Promise.all([readAt(KEY), readAt(BACKUP_1)]).then(function(old) {
+      var p = Promise.resolve(true);
+      if (valid(old[1])) p = p.then(function() { return putAt(BACKUP_2, old[1]); });
+      if (valid(old[0])) p = p.then(function() { return putAt(BACKUP_1, old[0]); });
+      return p.then(function() { return putAt(KEY, data); });
+    });
+  }
+
+  /* 序列化所有寫入，避免 pagehide、手動存檔與自動存檔同時輪替備份。 */
+  function safeWrite(data) {
+    var job = writeChain.then(function() { return rotateAndPut(data); });
+    writeChain = job.then(function() { return true; }, function() { return false; });
+    return job;
   }
 
   /* --- 鐵律一：寫入 --- */
@@ -125,7 +180,10 @@ W.Save = (function() {
       bosses: W.Bosses.exportData(),
       divineArms: W.DivineArms.exportData(),
       calamity: W.Calamity.exportData(),
-      skins: W.Skins ? W.Skins.exportData() : {}
+      travel: W.Travel ? W.Travel.exportData() : [],
+      journal: W.Journal ? W.Journal.exportData() : {},
+      skins: W.Skins ? W.Skins.exportData() : {},
+      rewards: W.Rewards ? W.Rewards.exportData() : {}
     };
   }
 
@@ -153,7 +211,10 @@ W.Save = (function() {
     W.Bosses.importData(data.bosses);
     W.DivineArms.importData(data.divineArms);
     W.Calamity.importData(data.calamity);
+    if (W.Travel) W.Travel.importData(data.travel);
+    if (W.Journal) W.Journal.importData(data.journal);
     if (W.Skins) W.Skins.importData(data.skins);
+    if (W.Rewards) W.Rewards.importData(data.rewards);
     W.Mates.importData(data.mates);
     W.Store.importData(data.store);
     lastOverflow = W.Store.absorbOverflow();
@@ -276,6 +337,47 @@ W.Save = (function() {
       v = 14;
     }
 
+    if (v === 14) {
+      /* v14 尚未記錄已探索的快速移動地點；營地永遠可用。 */
+      if (!data.travel) data.travel = [];
+      data.v = 15;
+      v = 15;
+    }
+
+    if (v === 15) {
+      /* v15 沒有冒險日誌；既有成就會由 journal.update 補登，獎勵仍需手動領取。 */
+      if (!data.journal) data.journal = {};
+      data.v = 16;
+      v = 16;
+    }
+
+    if (v === 16) {
+      /* v16 沒有獎勵中心的已讀狀態；收藏與榮譽由既有進度安全回推。 */
+      if (!data.rewards) data.rewards = {};
+      data.v = 17;
+      v = 17;
+    }
+
+    if (v === 17) {
+      /* v17 只有兩套災禍 Skin；新增 Skin 與不死鳥涅槃狀態由 importData 安全補值。 */
+      if (!data.skins) data.skins = {};
+      if (typeof data.skins.phoenixUsed !== 'boolean') data.skins.phoenixUsed = false;
+      data.v = 18;
+      v = 18;
+    }
+
+    if (v === 18) {
+      /* v18 的不死鳥只有永久單次旗標；v19 改成每次飛升輪迴各可使用一次。 */
+      if (!data.skins) data.skins = {};
+      if (typeof data.skins.phoenixCycle !== 'number') {
+        var savedCycle = data.calamity && typeof data.calamity.ascensionCycle === 'number'
+          ? Math.max(0, Math.floor(data.calamity.ascensionCycle)) : 0;
+        data.skins.phoenixCycle = data.skins.phoenixUsed ? savedCycle : -1;
+      }
+      data.v = 19;
+      v = 19;
+    }
+
     /* 種子不同代表是另一個世界，座標與採集狀態不可沿用，只保留背包 */
     if (data.seed !== W.CFG.SEED) {
       data.player = null;
@@ -288,7 +390,10 @@ W.Save = (function() {
       data.bosses = {};
       data.divineArms = {};
       data.calamity = {};
+      data.travel = [];
+      data.journal = {};
       data.skins = {};
+      data.rewards = {};
     }
 
     if (v > VERSION) return null;
@@ -300,8 +405,8 @@ W.Save = (function() {
      下次比對就會誤判成雲端比較新而反覆下載。 */
   function snapshot() {
     if (!ok) return Promise.resolve(null);
-    var d = collect();
-    return put(d).then(function(r) {
+    var d = seal(collect());
+    return safeWrite(d).then(function(r) {
       if (!r) return null;
       lastSaved = d.savedAt;
       if (W.Cloud) W.Cloud.markDirty();
@@ -316,21 +421,44 @@ W.Save = (function() {
   function load() {
     if (!ok) return Promise.resolve(false);
     return read().then(function(d) {
-      if (!d) return false;
-      var r = apply(d);
-      if (r) lastSaved = d.savedAt || 0;
-      return r;
+      if (valid(d) && apply(d)) {
+        lastSaved = d.savedAt || 0;
+        lastRecovery = '';
+        return true;
+      }
+      lastError = d ? '主存檔校驗失敗，正在嘗試備份' : '';
+      return recoverBackup();
     });
+  }
+
+  function recoverBackup() {
+    return readAt(BACKUP_1).then(function(first) {
+      if (valid(first) && apply(first)) return restoreRecovered(first, '備份 1');
+      return readAt(BACKUP_2).then(function(second) {
+        if (valid(second) && apply(second)) return restoreRecovered(second, '備份 2');
+        return false;
+      });
+    });
+  }
+
+  function restoreRecovered(data, label) {
+    seal(data);
+    lastSaved = data.savedAt || 0;
+    lastRecovery = label;
+    lastError = '';
+    return putAt(KEY, data).then(function(r) { return !!r; });
   }
 
   /* 雲端下載後的套用路徑：一律先過 migrate，再進 apply，最後寫回本機 IDB。
      少了寫回這一步，重開 App 會被舊的本機檔蓋掉。 */
   function applyRemote(data) {
+    if (!valid(data)) return Promise.resolve(false);
     var m = migrate(data);
     if (!m) return Promise.resolve(false);
     if (!apply(m)) return Promise.resolve(false);
     lastSaved = m.savedAt || Date.now();
-    return put(m).then(function() { return true; });
+    seal(m);
+    return safeWrite(m).then(function(r) { return !!r; });
   }
 
   function wipe() {
@@ -345,9 +473,11 @@ W.Save = (function() {
     W.DivineArms.clear();
     W.Calamity.clear();
     if (W.Skins) W.Skins.clear();
+    if (W.Rewards) W.Rewards.clear();
     W.Mates.clear();
     lastSaved = 0;
-    return remove();
+    lastRecovery = '';
+    return Promise.all([remove(), removeAt(BACKUP_1), removeAt(BACKUP_2)]).then(function() { return true; });
   }
 
   function tick(dt) {
@@ -364,6 +494,7 @@ W.Save = (function() {
       reason: reason,
       lastSaved: lastSaved,
       lastError: lastError,
+      lastRecovery: lastRecovery,
       version: VERSION,
       overflow: lastOverflow
     };

@@ -5,6 +5,7 @@ W.Input = (function() {
   var joyOn = false, joyId = null;
   var ox = 0, oy = 0;
   var keys = {};
+  var locked = false;
   var elBase = null, elKnob = null;
   var tapPend = false;
   var tapSX = 0, tapSY = 0;
@@ -144,6 +145,7 @@ W.Input = (function() {
   }
 
   function readKeys() {
+    if (locked) { moveX = 0; moveY = 0; return; }
     if (joyOn || mouseDown) return;
     var dx = 0, dy = 0;
     if (keys['a'] || keys['arrowleft'])  dx -= 1;
@@ -178,6 +180,11 @@ W.Input = (function() {
     getX: function() { return moveX; },
     getY: function() { return moveY; },
     isActive: function() { return joyOn || mouseDown; },
+    setLocked: function(on) {
+      locked = !!on;
+      if (locked) { moveX = 0; moveY = 0; joyOn = false; mouseDown = false; if (elBase) hideJoy(); }
+    },
+    isLocked: function() { return locked; },
     consumeTap: function(out) {
       if (!tapPend) return false;
       tapPend = false;

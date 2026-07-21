@@ -43,6 +43,16 @@ W.Store = (function() {
     return got;
   }
 
+  /* 系統獎勵直接存入共用倉庫，不需要先塞進背包再取出。 */
+  function grant(id, n) {
+    if (W.Inv.ORDER.indexOf(id) < 0 || n <= 0) return 0;
+    var room = W.CFG.STORE_CAP - total();
+    if (room <= 0) return 0;
+    if (n > room) n = room;
+    items[id] = (items[id] || 0) + n;
+    return n;
+  }
+
   /* 一鍵存入：把背包裡所有「非工具類」資源丟進倉庫 */
   function depositAll() {
     var order = W.Inv.ORDER, i, id, moved = 0;
@@ -108,6 +118,7 @@ W.Store = (function() {
     total: total,
     deposit: deposit,
     withdraw: withdraw,
+    grant: grant,
     depositAll: depositAll,
     absorbOverflow: absorbOverflow,
     ids: ids,

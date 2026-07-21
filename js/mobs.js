@@ -142,6 +142,7 @@ W.Mobs = (function() {
       if (m.hurt > 0) m.hurt -= dt;
 
       spd = SPEED[m.type];
+      if(W.Skins&&W.Skins.enemySpeedMultiplier)spd*=W.Skins.enemySpeedMultiplier(m.wx,m.wy);
 
       if (m.type === TYPE.SHADOW) {
         if (!W.Stats.isLowSan() || !W.Time.isNight()) { m.alive = false; continue; }
@@ -152,8 +153,7 @@ W.Mobs = (function() {
           if (d < W.CFG.WOLF_HIT_RANGE) {
             if (m.cd <= 0) {
               m.cd = W.CFG.WOLF_HIT_CD;
-              W.Stats.damage(W.CFG.WOLF_DMG);
-              if (W.Game && W.Game.onHurt) W.Game.onHurt();
+              if (W.Stats.damage(W.CFG.WOLF_DMG) && W.Game && W.Game.onHurt) W.Game.onHurt();
             }
             m.vx = 0; m.vy = 0;
           }
@@ -172,8 +172,7 @@ W.Mobs = (function() {
           if (d < W.CFG.WOLF_HIT_RANGE + 6) {
             if (m.cd <= 0) {
               m.cd = W.CFG.WOLF_HIT_CD;
-              W.Stats.damage((m.type === TYPE.BEAR) ? W.CFG.BEAR_DMG : W.CFG.BOAR_DMG);
-              if (W.Game && W.Game.onHurt) W.Game.onHurt();
+              if (W.Stats.damage((m.type === TYPE.BEAR) ? W.CFG.BEAR_DMG : W.CFG.BOAR_DMG) && W.Game && W.Game.onHurt) W.Game.onHurt();
             }
             m.vx = 0; m.vy = 0;
           }
@@ -204,8 +203,7 @@ W.Mobs = (function() {
           if (d < W.CFG.WOLF_HIT_RANGE) {
             if (m.cd <= 0) {
               m.cd = W.CFG.WOLF_HIT_CD;
-              W.Stats.damage(W.CFG.WOLF_DMG);
-              if (W.Game && W.Game.onHurt) W.Game.onHurt();
+              if (W.Stats.damage(W.CFG.WOLF_DMG) && W.Game && W.Game.onHurt) W.Game.onHurt();
             }
             m.vx = 0;
             m.vy = 0;

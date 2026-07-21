@@ -53,14 +53,16 @@ W.DivineArms = (function() {
   }
 
   function update(dt){
+    var cm=W.Skins&&W.Skins.divineCooldownMultiplier?W.Skins.divineCooldownMultiplier():1;
+    var cdt=dt/(cm>0?cm:1);
     updateFx(dt);
-    updateWing(dt);
-    updateAxe(dt);
+    updateWing(dt,cdt);
+    updateAxe(dt,cdt);
 
     if(allThree()){
       if(overdriveT>0){overdriveT-=dt;if(overdriveT<0)overdriveT=0;}
       else {
-        overdriveCd-=dt;
+        overdriveCd-=cdt;
         if(overdriveCd<=0){
           overdriveCd=18;overdriveT=4;overdrives++;shieldT=Math.max(shieldT,4);
           if(W.Game&&W.Game.onDivineOverdrive)W.Game.onDivineOverdrive();
@@ -69,13 +71,13 @@ W.DivineArms = (function() {
     }else{overdriveT=0;overdriveCd=18;}
 
     if(allFive()){
-      domainCd-=dt;
+      domainCd-=cdt;
       if(domainCd<=0){domainCd=6;castDomainStrike();}
     }else{domainCd=6;domainT=0;}
 
-    updateShield(dt);
+    updateShield(dt,cdt);
     if(active('gun')){
-      gunCd-=dt;
+      gunCd-=cdt;
       if(gunCd<=0){
         gunCd=overdriveT>0?0.8:(wingBoostT>0?1.2:DEFS.gun.cooldown);
         fireGun();
@@ -83,24 +85,24 @@ W.DivineArms = (function() {
     }
   }
 
-  function updateShield(dt){
+  function updateShield(dt,cdt){
     if(!active('shield')){shieldT=0;return;}
     if(shieldT>0){shieldT-=dt;if(shieldT<0)shieldT=0;return;}
-    shieldCd-=dt;
+    shieldCd-=cdt;
     if(shieldCd<=0){
       shieldT=DEFS.shield.duration;shieldCd=DEFS.shield.cooldown;
       if(W.Game&&W.Game.onShieldReady)W.Game.onShieldReady();
     }
   }
 
-  function updateWing(dt){
+  function updateWing(dt,cdt){
     if(!active('wing')){wingT=0;wingBoostT=0;return;}
-    if(wingCd>0){wingCd-=dt;if(wingCd<0)wingCd=0;}
+    if(wingCd>0){wingCd-=cdt;if(wingCd<0)wingCd=0;}
     if(wingT>0){wingT-=dt;if(wingT<0)wingT=0;}
     if(wingBoostT>0){wingBoostT-=dt;if(wingBoostT<0)wingBoostT=0;}
   }
 
-  function updateAxe(dt){
+  function updateAxe(dt,cdt){
     if(!active('axe')){tornadoT=0;return;}
     axeAngle=(axeAngle+dt*(tornadoT>0?7.5:3.2))%(Math.PI*2);
     if(tornadoT>0){
@@ -109,7 +111,7 @@ W.DivineArms = (function() {
       if(tornadoT<0)tornadoT=0;
       return;
     }
-    axeHitT-=dt;
+    axeHitT-=cdt;
     if(axeHitT<=0){
       axeHitT=0.3;
       var x=W.Player.wx+Math.cos(axeAngle)*DEFS.axe.range;
@@ -250,9 +252,9 @@ W.DivineArms = (function() {
 
   function has(id){return!!owned[id];}
   function isEquipped(id){return!!equipped[id];}
-  function shieldActive(){return shieldT>0;}
+  function shieldActive(){return active('shield')&&shieldT>0;}
   function shieldPct(){if(!owned.shield)return 0;if(shieldT>0)return 1;return Math.max(0,1-shieldCd/DEFS.shield.cooldown);}
-  function wingActive(){return wingT>0;}
+  function wingActive(){return active('wing')&&wingT>0;}
   function wingReady(){return active('wing')&&wingCd<=0;}
   function wingPct(){if(!owned.wing)return 0;if(wingT>0||wingCd<=0)return 1;return Math.max(0,1-wingCd/DEFS.wing.cooldown);}
   function speedMultiplier(){return active('wing')?DEFS.wing.speed:1;}
@@ -309,9 +311,9 @@ W.DivineArms = (function() {
   }
 
   function stats(){
-    var n=0,k;for(k in owned)if(owned.hasOwnProperty(k)&&owned[k])n++;
+    var n=0,e=0,k;for(k in owned)if(owned.hasOwnProperty(k)&&owned[k]){n++;if(equipped[k])e++;}
     return{
-      owned:n,shield:!!owned.shield,gun:!!owned.gun,sword:!!owned.sword,axe:!!owned.axe,wing:!!owned.wing,
+      owned:n,equipped:e,shield:!!owned.shield,gun:!!owned.gun,sword:!!owned.sword,axe:!!owned.axe,wing:!!owned.wing,
       active:shieldActive(),axeActive:axeTornadoActive(),wingActive:wingActive(),wingReady:wingReady(),domain:domainActive(),
       blocked:blocked,gunShots:gunShots,swordWaves:swordWaves,axeHits:axeHits,tornadoes:tornadoes,wingEvades:wingEvades,
       domainStrikes:domainStrikes,resonances:resonanceCount(),overdrive:overdriveActive(),overdrives:overdrives,label:resonanceLabel()

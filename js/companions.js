@@ -7,10 +7,10 @@ W.Mates = (function() {
 
   /* 前 2 位強（洞穴魔王囚禁），後 2 位弱（廢墟遊蕩） */
   var DEFS = [
-    { id: 'knight', name: '\u5c0f\u9a0e\u58eb', strong: true,  dmg: 8, rate: 1.1, art: 'mate_knight', color: '#7fa8e8' },
-    { id: 'archer', name: '\u5c0f\u7375\u4eba', strong: true,  dmg: 6, rate: 0.9, art: 'mate_archer', color: '#8ec87f' },
-    { id: 'cat',    name: '\u5c0f\u8c93',       strong: false, dmg: 2, rate: 1.6, art: 'mate_cat',    color: '#e8c07f' },
-    { id: 'sprite', name: '\u5c0f\u7cbe\u9748', strong: false, dmg: 1, rate: 2.0, art: 'mate_sprite', color: '#c79fe8' }
+    { id: 'knight', name: '\u5c0f\u9a0e\u58eb', strong: true,  dmg: 8, rate: 1.1, range: 78,  art: 'mate_knight', color: '#7fa8e8' },
+    { id: 'archer', name: '\u5c0f\u7375\u4eba', strong: true,  dmg: 6, rate: 0.9, range: 235, art: 'mate_archer', color: '#8ec87f' },
+    { id: 'cat',    name: '\u5c0f\u8c93',       strong: false, dmg: 2, rate: 1.6, range: 82,  art: 'mate_cat',    color: '#e8c07f' },
+    { id: 'sprite', name: '\u5c0f\u7cbe\u9748', strong: false, dmg: 1, rate: 2.0, range: 195, art: 'mate_sprite', color: '#c79fe8' }
   ];
 
   var EAT_EVERY = 75;
@@ -28,6 +28,10 @@ W.Mates = (function() {
       hungry: false,
       eatT: EAT_EVERY * (0.5 + i0 * 0.2),
       atkT: 0,
+      actionT: 0, actionMax: 0.34,
+      hitWx: 0, hitWy: 0,
+      vx: 0, vy: 0,
+      animT: i0 * 0.73, bob: 0, lean: 0,
       homeSite: null
     });
   }
@@ -74,11 +78,51 @@ W.Mates = (function() {
   }
 
   var _hit = null;
+  var _target = { kind: '', obj: null, wx: 0, wy: 0, d2: 0 };
+
+  function nearestTarget(m, range) {
+    var best = range * range, kind = '', obj = null, wx = 0, wy = 0;
+    var i, e, dx, dy, d2;
+    for (i = 0; i < W.Mobs.count(); i++) {
+      e = W.Mobs.at(i); if (!e || !e.alive) continue;
+      dx = e.wx - m.wx; dy = e.wy - m.wy; d2 = dx * dx + dy * dy;
+      if (d2 < best) { best = d2; kind = 'mob'; obj = e; wx = e.wx; wy = e.wy; }
+    }
+    if (W.Bosses && W.Bosses.nearest) {
+      e = W.Bosses.nearest(m.wx, m.wy);
+      if (e && e.alive) { dx=e.wx-m.wx;dy=e.wy-m.wy;d2=dx*dx+dy*dy;
+        if(d2<best){best=d2;kind='boss';obj=e;wx=e.wx;wy=e.wy;} }
+    }
+    if (W.Calamity && W.Calamity.nearest) {
+      e = W.Calamity.nearest(m.wx, m.wy);
+      if (e && e.alive !== false) { dx=e.wx-m.wx;dy=e.wy-m.wy;d2=dx*dx+dy*dy;
+        if(d2<best){best=d2;kind='calamity';obj=e;wx=e.wx;wy=e.wy;} }
+    }
+    if (!obj) return null;
+    _target.kind=kind;_target.obj=obj;_target.wx=wx;_target.wy=wy;_target.d2=best;
+    return _target;
+  }
+
+  function hitTarget(m, t) {
+    if (t.kind === 'mob') return W.Mobs.hitAt(t.wx, t.wy, 24, m.def.dmg);
+    if (t.kind === 'boss' && W.Bosses) return W.Bosses.hitAt(t.wx, t.wy, 24, m.def.dmg);
+    if (t.kind === 'calamity' && W.Calamity) return W.Calamity.hitAt(t.wx, t.wy, 24, m.def.dmg);
+    return null;
+  }
+
+  function faceToward(m, x, y, dt, immediate) {
+    var dx=x-m.wx,dy=y-m.wy,d=Math.sqrt(dx*dx+dy*dy),k,nx,ny,len;
+    if(d<0.001)return;
+    nx=dx/d;ny=dy/d;k=immediate?1:(1-Math.exp(-dt*10));
+    m.faceX+=(nx-m.faceX)*k;m.faceY+=(ny-m.faceY)*k;
+    len=Math.sqrt(m.faceX*m.faceX+m.faceY*m.faceY)||1;m.faceX/=len;m.faceY/=len;
+  }
 
   function update(dt) {
-    var i, m, dx, dy, d, spd, tx, ty;
+    var i, m, dx, dy, d, spd, tx, ty, side, back, response, desired, speed, damp, target;
     for (i = 0; i < mates.length; i++) {
       m = mates[i];
+      if(m.actionT>0)m.actionT=Math.max(0,m.actionT-dt);
 
       if (!m.recruited) {
         if (m.homeSite) {
@@ -101,36 +145,49 @@ W.Mates = (function() {
         if (!m.hungry) m.eatT = EAT_EVERY;
       }
 
-      /* 跟隨：目標點在玩家斜後方，四位各自錯開避免疊在一起 */
-      tx = W.Player.wx - W.Player.faceX * 46 + ((i % 2 === 0) ? -26 : 26);
-      ty = W.Player.wy - W.Player.faceY * 46 + ((i < 2) ? -18 : 18);
+      /* 跟隨陣形跟著玩家面向旋轉，避免轉彎後四位突然交叉換位。 */
+      side = (i % 2 === 0 ? -1 : 1) * (28 + Math.floor(i / 2) * 8);
+      back = 48 + Math.floor(i / 2) * 34;
+      tx = W.Player.wx - W.Player.faceX * back - W.Player.faceY * side;
+      ty = W.Player.wy - W.Player.faceY * back + W.Player.faceX * side;
       dx = tx - m.wx;
       dy = ty - m.wy;
       d = Math.sqrt(dx * dx + dy * dy);
 
-      if (d > 700) { m.wx = tx; m.wy = ty; d = 0; }
+      if (d > 700) { m.wx=tx;m.wy=ty;m.vx=0;m.vy=0;d=0; }
 
-      m.moving = d > 14;
-      if (m.moving) {
-        spd = W.CFG.PLAYER_SPEED * (m.hungry ? 0.55 : 1.05);
-        m.wx += dx / d * Math.min(spd * dt, d);
-        m.wy += dy / d * Math.min(spd * dt, d);
-        m.faceX = dx / d;
-        m.faceY = dy / d;
+      /* arrive steering：以加速度靠近而非每幀瞬間改方向，停下時也會自然減速。 */
+      spd=W.CFG.PLAYER_SPEED*(m.hungry?0.58:1.08);
+      response=1-Math.exp(-dt*8);
+      if(d>10){
+        desired=Math.min(spd,Math.max(24,(d-8)*4.2));
+        m.vx+=(dx/d*desired-m.vx)*response;
+        m.vy+=(dy/d*desired-m.vy)*response;
+      }else{
+        damp=Math.exp(-dt*12);m.vx*=damp;m.vy*=damp;
       }
+      speed=Math.sqrt(m.vx*m.vx+m.vy*m.vy);
+      if(speed>spd){m.vx=m.vx/speed*spd;m.vy=m.vy/speed*spd;speed=spd;}
+      m.wx+=m.vx*dt;m.wy+=m.vy*dt;
+      m.moving=speed>8;
+      if(m.moving)faceToward(m,m.wx+m.vx,m.wy+m.vy,dt,false);
+      m.animT+=dt*(m.moving?8.5:(m.def.id==='sprite'?4.2:2.1));
+      m.bob=m.def.id==='sprite'?(-5+Math.sin(m.animT)*2.6):(m.moving?-Math.abs(Math.sin(m.animT))*2.5:Math.sin(m.animT)*0.55);
+      m.lean=m.moving?Math.max(-0.065,Math.min(0.065,m.vx/spd*0.065)):0;
 
       /* 協同攻擊：飢餓時不出手 */
       m.atkT -= dt;
       if (!m.hungry && m.atkT <= 0) {
-        _hit = W.Mobs.hitAt(m.wx + m.faceX * 40, m.wy + m.faceY * 40, 46, m.def.dmg);
-        if (!_hit && W.Bosses) {
-          _hit = W.Bosses.hitAt(m.wx + m.faceX * 40, m.wy + m.faceY * 40, 46, m.def.dmg);
-        }
+        target=nearestTarget(m,m.def.range);
+        _hit=null;
+        if(target){faceToward(m,target.wx,target.wy,dt,true);_hit=hitTarget(m,target);}
         if (_hit) {
           m.atkT = m.def.rate;
+          m.actionT=m.actionMax;
+          m.hitWx=_hit.wx||target.wx;m.hitWy=_hit.wy||target.wy;
           if (W.Game && W.Game.onMateHit) W.Game.onMateHit(m, _hit);
         } else {
-          m.atkT = 0.3;
+          m.atkT = 0.18;
         }
       }
     }
@@ -179,6 +236,7 @@ W.Mates = (function() {
     for (i = 0; i < mates.length; i++) {
       mates[i].recruited = false;
       mates[i].hungry = false;
+      mates[i].vx=0;mates[i].vy=0;mates[i].actionT=0;
     }
     if (!o) return;
     for (i = 0; i < mates.length; i++) {
@@ -186,6 +244,7 @@ W.Mates = (function() {
         mates[i].recruited = true;
         mates[i].wx = W.Player.wx + 30 + i * 12;
         mates[i].wy = W.Player.wy + 30;
+        mates[i].vx=0;mates[i].vy=0;mates[i].actionT=0;
       }
     }
   }
@@ -195,6 +254,7 @@ W.Mates = (function() {
     for (i = 0; i < mates.length; i++) {
       mates[i].recruited = false;
       mates[i].hungry = false;
+      mates[i].vx=0;mates[i].vy=0;mates[i].actionT=0;
     }
     assignHomes();
   }

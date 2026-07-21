@@ -23,9 +23,159 @@ W.Render = (function() {
 
   /* main.js 的災禍、飛升、Skin 與神武事件共用的全畫面閃光。 */
   function flash(color, duration) {
+    if (W.Settings && (!W.Settings.get('flashes') || W.Settings.get('reducedMotion'))) return;
     flashColor = color || 'rgba(255,255,255,0.25)';
     flashMax = (typeof duration === 'number' && duration > 0) ? duration : 0.28;
     flashT = flashMax;
+  }
+
+  /* Phase 16 戰鬥回饋：效果池不在每幀建立物件，命中停頓只凍結遊戲模擬，
+     特效與鏡頭震動仍用真實時間播放。 */
+  var hitstopT = 0, slowT = 0, slowScale = 0.35, shakeT = 0, shakeMax = 0, shakeAmp = 0, shakePhase = 0, shakeX = 0, shakeY = 0;
+  var IMPACT_MAX = 12, TRAVEL_MAX = 3, DODGE_MAX = 4, PHASE_MAX = 3;
+  var impactPool = [], travelPool = [], dodgePool = [], phasePool = [], fi;
+  for (fi = 0; fi < IMPACT_MAX; fi++) impactPool.push({on:false,wx:0,wy:0,t:0,max:0,strong:false,rot:0});
+  for (fi = 0; fi < TRAVEL_MAX; fi++) travelPool.push({on:false,wx:0,wy:0,t:0,max:0});
+  for (fi = 0; fi < DODGE_MAX; fi++) dodgePool.push({on:false,wx:0,wy:0,t:0,max:0,rot:0,flip:false});
+  for (fi = 0; fi < PHASE_MAX; fi++) phasePool.push({on:false,wx:0,wy:0,t:0,max:0});
+
+  function shake(strength, duration) {
+    if (W.Settings && W.Settings.get('reducedMotion')) return;
+    var mul = W.Settings ? Number(W.Settings.get('shake')) : 1;
+    if (!isFinite(mul) || mul <= 0) return;
+    var d = duration || 0.16, s = (strength || 3) * mul;
+    if (d >= shakeT || s > shakeAmp) { shakeT = d; shakeMax = d; shakeAmp = s; }
+  }
+
+  function impact(wx, wy, strong) {
+    var i, p;
+    for (i = 0; i < IMPACT_MAX; i++) if (!impactPool[i].on) {
+      p = impactPool[i]; p.on = true; p.wx = wx; p.wy = wy; p.max = strong ? 0.34 : 0.25;
+      p.t = p.max; p.strong = !!strong; p.rot = (i % 6) * 0.47; break;
+    }
+    if (!(W.Settings && W.Settings.get('reducedMotion'))) {
+      hitstopT = Math.max(hitstopT, (W.Settings && W.Settings.get('lowPower')) ? 0.025 : (strong ? 0.075 : 0.045));
+    }
+    shake(strong ? 7 : 4, strong ? 0.24 : 0.14);
+  }
+
+  function travelFx(wx, wy) {
+    var i, p;
+    for (i = 0; i < TRAVEL_MAX; i++) if (!travelPool[i].on) {
+      p = travelPool[i]; p.on = true; p.wx = wx; p.wy = wy; p.max = 0.9; p.t = p.max; break;
+    }
+    shake(3, 0.28);
+  }
+
+  function dodgeFx(wx, wy, fx, fy) {
+    var i, p;
+    for (i = 0; i < DODGE_MAX; i++) if (!dodgePool[i].on) {
+      p = dodgePool[i]; p.on = true; p.wx = wx; p.wy = wy; p.max = 0.34; p.t = p.max;
+      p.rot = Math.atan2(fy || 0, fx || 1); p.flip = (fx || 0) < 0; break;
+    }
+  }
+
+  function phaseFx(wx, wy) {
+    var i, p;
+    for (i = 0; i < PHASE_MAX; i++) if (!phasePool[i].on) {
+      p = phasePool[i]; p.on = true; p.wx = wx; p.wy = wy; p.max = 1.05; p.t = p.max; break;
+    }
+    shake(9, 0.45);
+  }
+
+  function stepFrame(realDt) {
+    var stopped = hitstopT > 0, slowed = slowT > 0, i, p, k;
+    if (W.Settings && W.Settings.get('reducedMotion')) {
+      hitstopT = 0; slowT = 0; shakeT = 0; shakeX = 0; shakeY = 0;
+      stopped = false; slowed = false;
+    }
+    if (hitstopT > 0) hitstopT = Math.max(0, hitstopT - realDt);
+    if (slowT > 0) slowT = Math.max(0, slowT - realDt);
+    for (i = 0; i < IMPACT_MAX; i++) { p = impactPool[i]; if (p.on) { p.t -= realDt; if (p.t <= 0) p.on = false; } }
+    for (i = 0; i < TRAVEL_MAX; i++) { p = travelPool[i]; if (p.on) { p.t -= realDt; if (p.t <= 0) p.on = false; } }
+    for (i = 0; i < DODGE_MAX; i++) { p = dodgePool[i]; if (p.on) { p.t -= realDt; if (p.t <= 0) p.on = false; } }
+    for (i = 0; i < PHASE_MAX; i++) { p = phasePool[i]; if (p.on) { p.t -= realDt; if (p.t <= 0) p.on = false; } }
+    if (shakeT > 0) {
+      shakeT = Math.max(0, shakeT - realDt); shakePhase += realDt * 92;
+      k = shakeMax > 0 ? shakeT / shakeMax : 0;
+      shakeX = Math.sin(shakePhase) * shakeAmp * k;
+      shakeY = Math.cos(shakePhase * 1.37) * shakeAmp * 0.72 * k;
+    } else { shakeX = 0; shakeY = 0; }
+    return stopped ? 0 : (slowed ? realDt * slowScale : realDt);
+  }
+
+  function slowMotion(duration, scale) {
+    if (W.Settings && W.Settings.get('reducedMotion')) return;
+    slowT = Math.max(slowT, Math.max(0, Number(duration) || 0));
+    slowScale = Math.max(0.12, Math.min(1, Number(scale) || 0.35));
+  }
+
+  function highContrastRing(sx, sy, radius) {
+    if (!(W.Settings && W.Settings.get('highContrast'))) return;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 6; ctx.stroke();
+    ctx.beginPath(); ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.setLineDash([7, 4]); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawCenteredFx(img, sx, sy, size, alpha, rotation) {
+    if (!img) return;
+    ctx.save(); ctx.globalAlpha = alpha; ctx.translate(sx, sy); ctx.rotate(rotation || 0);
+    ctx.drawImage(img, -size / 2, -size / 2, size, size); ctx.restore();
+  }
+
+  function drawFeedbackFx() {
+    var z = W.Camera.zoom, hit = W.Art.get('fx_hit'), portal = W.Art.get('fx_travel');
+    var dodge = W.Art.get('fx_dodge'), phase = W.Art.get('fx_phase');
+    var vis = W.Rewards && W.Rewards.visuals ? W.Rewards.visuals() : {eliteHit:false,travel:false};
+    var low = W.Settings && W.Settings.get('lowPower');
+    var i, p, life, size;
+    for (i = 0; i < IMPACT_MAX; i++) {
+      p = impactPool[i]; if (!p.on) continue; life = p.t / p.max;
+      W.Camera.worldToScreenInto(p.wx, p.wy, _p);
+      size = (p.strong ? 112 : 78) * z * (1.2 - life * 0.35) * (vis.eliteHit ? 1.16 : 1);
+      drawCenteredFx(hit, _p.sx, _p.sy, size, Math.min(1, life * 2.8), p.rot + (1-life)*0.3);
+      if (vis.eliteHit && !low) drawCenteredFx(hit, _p.sx, _p.sy, size * 0.62, Math.min(0.7, life * 2), -p.rot);
+    }
+    for (i = 0; i < TRAVEL_MAX; i++) {
+      p = travelPool[i]; if (!p.on) continue; life = p.t / p.max;
+      W.Camera.worldToScreenInto(p.wx, p.wy, _p); size = (vis.travel ? 205 : 165) * z * (1.08 - life * 0.12);
+      drawCenteredFx(portal, _p.sx, _p.sy + 10*z, size, Math.min(0.92, life * 2.4), (1-life)*0.55);
+      if (vis.travel && !low) drawCenteredFx(portal, _p.sx, _p.sy + 10*z, size*0.72, Math.min(0.42, life), -(1-life)*0.8);
+    }
+    for (i = 0; i < DODGE_MAX; i++) {
+      p = dodgePool[i]; if (!p.on) continue; life = p.t / p.max;
+      W.Camera.worldToScreenInto(p.wx, p.wy, _p); size = 118 * z * (1.08 - life * 0.18);
+      ctx.save(); ctx.globalAlpha = Math.min(0.95, life * 2.6); ctx.translate(_p.sx, _p.sy + 5*z);
+      ctx.rotate(p.rot); if (p.flip) ctx.scale(1,-1);
+      if (dodge) ctx.drawImage(dodge, -size*.52, -size*.5, size, size); ctx.restore();
+    }
+    for (i = 0; i < PHASE_MAX; i++) {
+      p = phasePool[i]; if (!p.on) continue; life = p.t / p.max;
+      W.Camera.worldToScreenInto(p.wx, p.wy, _p); size = (210 + (1-life)*85) * z;
+      drawCenteredFx(phase, _p.sx, _p.sy, size, Math.min(1, life*2.2), (1-life)*0.75);
+    }
+  }
+
+  function drawHonorTrail() {
+    var vis = W.Rewards && W.Rewards.visuals ? W.Rewards.visuals() : null;
+    if (!vis || !vis.trail || !W.Player.moving) return;
+    W.Camera.worldToScreenInto(W.Player.wx, W.Player.wy, _p);
+    var z=W.Camera.zoom,i,k,x,y;
+    for(i=0;i<4;i++){k=(artT*2.3+i*.24)%1;x=_p.sx-W.Player.faceX*(14+i*7)*z+Math.sin(artT*5+i)*4*z;y=_p.sy-W.Player.faceY*(8+i*5)*z+10*z;
+      ctx.fillStyle='rgba(255,210,95,'+(0.6*(1-k))+')';ctx.beginPath();ctx.arc(x,y,(2.8-i*.35)*z,0,Math.PI*2);ctx.fill();}
+  }
+
+  function drawHonorCrown() {
+    var vis = W.Rewards && W.Rewards.visuals ? W.Rewards.visuals() : null;
+    if (!vis || !vis.crown) return;
+    W.Camera.worldToScreenInto(W.Player.wx, W.Player.wy, _p);
+    var z=W.Camera.zoom,y=_p.sy-75*z,pulse=1+Math.sin(artT*4)*.08;
+    ctx.save();ctx.strokeStyle='rgba(255,225,120,0.92)';ctx.fillStyle='rgba(255,205,75,0.28)';ctx.lineWidth=2*z;
+    ctx.beginPath();ctx.ellipse(_p.sx,y,18*z*pulse,6*z*pulse,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='rgba(255,245,190,0.95)';ctx.beginPath();ctx.arc(_p.sx,y,2.5*z,0,Math.PI*2);ctx.fill();ctx.restore();
   }
   var _pulse = 0;
 
@@ -51,6 +201,8 @@ W.Render = (function() {
 
   /* 統一的素材繪製：以腳底（sx, sy）為錨點，等比例縮放到指定世界高度 */
   function drawArt(img, sx, sy, hWorld, flip) {
+    /* 素材遺失或尚未載入時安全略過，避免 img.width 造成整局白畫面。 */
+    if (!img) return;
     var h = hWorld * W.Camera.zoom;
     var w = h * (img.width / img.height);
     if (flip) {
@@ -62,6 +214,20 @@ W.Render = (function() {
     } else {
       ctx.drawImage(img, sx - w / 2, sy - h, w, h);
     }
+  }
+
+  /* 三幀夥伴素材：以腳底為旋轉錨點，保留透明邊緣並加入細微浮動／前傾。 */
+  function drawArtFrame(img, frame, frames, sx, sy, hWorld, flip, bob, tilt, step) {
+    if (!img) return;
+    var sw=img.width/frames,sh=img.height;
+    var h=hWorld*W.Camera.zoom,w=h*(sw/sh);
+    step=step||0;
+    ctx.save();ctx.translate(sx+step*0.65*W.Camera.zoom,sy+(bob||0)*W.Camera.zoom);
+    ctx.scale(1+Math.abs(step)*0.018,1-Math.abs(step)*0.025);
+    if(flip)ctx.scale(-1,1);
+    ctx.rotate(flip?-(tilt||0):(tilt||0));
+    ctx.drawImage(img,Math.floor(frame)*sw,0,sw,sh,-w/2,-h,w,h);
+    ctx.restore();
   }
 
   function shadow(sx, sy, rx, ry) {
@@ -84,6 +250,7 @@ W.Render = (function() {
   var _cg = { wx: 0, wy: 0 };
 
   function dmgText(wx, wy, txt) {
+    if (W.Settings && !W.Settings.get('damageNumbers')) return;
     var k;
     for (k = 0; k < DMG_MAX; k++) {
       if (!dmgPool[k].on) {
@@ -205,9 +372,29 @@ W.Render = (function() {
 
   /* 夥伴與魔王：素材還沒到，先用色圈＋名牌占位，
      圖檔一旦加入 art.js 的清單就會自動改用圖片。 */
+  var _mateFxP={sx:0,sy:0};
+  function drawMateAttackFx(m,sx,sy,z){
+    if(!m.actionT||m.actionT<=0)return;
+    var life=Math.max(0,Math.min(1,m.actionT/(m.actionMax||0.34)));
+    W.Camera.worldToScreenInto(m.hitWx,m.hitWy,_mateFxP);
+    ctx.save();ctx.globalAlpha=Math.min(1,life*2.6);
+    if(m.def.id==='archer'){
+      ctx.strokeStyle='#ffe9a3';ctx.lineWidth=2*z;ctx.beginPath();ctx.moveTo(sx+m.faceX*9*z,sy-24*z);ctx.lineTo(_mateFxP.sx,_mateFxP.sy-12*z);ctx.stroke();
+      ctx.fillStyle='#fff5c9';ctx.beginPath();ctx.arc(_mateFxP.sx,_mateFxP.sy-12*z,3.2*z,0,Math.PI*2);ctx.fill();
+    }else if(m.def.id==='sprite'){
+      var pulse=(8+(1-life)*10)*z;ctx.fillStyle='rgba(218,145,255,0.42)';ctx.beginPath();ctx.arc(_mateFxP.sx,_mateFxP.sy-10*z,pulse,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#f1c9ff';ctx.lineWidth=2*z;ctx.beginPath();ctx.moveTo(sx,sy-28*z);ctx.lineTo(_mateFxP.sx,_mateFxP.sy-10*z);ctx.stroke();
+    }else if(m.def.id==='cat'){
+      ctx.strokeStyle='#ffe5d0';ctx.lineWidth=2.5*z;for(var c=-1;c<=1;c++){ctx.beginPath();ctx.moveTo(_mateFxP.sx-12*z,_mateFxP.sy+(c*5-16)*z);ctx.lineTo(_mateFxP.sx+12*z,_mateFxP.sy+(c*5-22)*z);ctx.stroke();}
+    }else{
+      ctx.strokeStyle='#e9dcff';ctx.lineWidth=4*z;ctx.beginPath();ctx.arc(sx+m.faceX*12*z,sy-18*z,23*z,-1.2,1.1);ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawMates() {
     if (!W.Mates) return;
-    var i, m, img, z, r, h, cg, ch;
+    var i, m, img, sheet, frameNo, z, r, h, cg, ch;
     z = W.Camera.zoom;
     for (i = 0; i < W.Mates.count(); i++) {
       m = W.Mates.at(i);
@@ -215,7 +402,9 @@ W.Render = (function() {
       W.Camera.worldToScreenInto(m.wx, m.wy, _p);
       if (_p.sx < -80 || _p.sx > W.Camera.vw + 80 || _p.sy < -80 || _p.sy > W.Camera.vh + 80) continue;
 
-      img = W.Art.get(m.moving ? (m.def.art + '_walk') : m.def.art);
+      sheet=W.Art.get(m.def.art+'_sheet');
+      img=sheet;
+      frameNo=m.actionT>0?2:(m.moving?1:0);
       r = 12 * z;
 
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -224,7 +413,9 @@ W.Render = (function() {
       ctx.fill();
 
       if (img) {
-        drawArt(img, _p.sx, _p.sy + r * 0.6, 52, m.faceX < 0);
+        h=m.def.id==='sprite'?54:58;
+        drawArtFrame(sheet,frameNo,3,_p.sx,_p.sy+r*0.6,h,m.faceX<0,m.bob,m.lean,m.actionT>0?0:(m.moving?Math.sin(m.animT):Math.sin(m.animT)*0.18));
+        drawMateAttackFx(m,_p.sx,_p.sy+r*0.6,z);
       } else {
         ctx.fillStyle = m.def.color;
         ctx.beginPath();
@@ -269,7 +460,7 @@ W.Render = (function() {
 
   function drawBosses() {
     if (!W.Bosses) return;
-    var i, b, img, z, r, h, w;
+    var i, b, img, z, r, h, w, wind;
     z = W.Camera.zoom;
     for (i = 0; i < W.Bosses.count(); i++) {
       b = W.Bosses.at(i);
@@ -277,6 +468,14 @@ W.Render = (function() {
       W.Camera.worldToScreenInto(b.wx, b.wy, _p);
       if (_p.sx < -120 || _p.sx > W.Camera.vw + 120 || _p.sy < -120 || _p.sy > W.Camera.vh + 120) continue;
 
+      wind = b.def.kind === 'regional' && (b.skillWind > 0 || (b.atkT > 0 && b.atkT < 0.28));
+      if (wind) {
+        drawCenteredFx(W.Art.get('fx_warning'), _p.sx, _p.sy + 6*z, 118*z,
+          0.46 + 0.22*Math.sin(artT*18), -artT*0.45);
+        ctx.save(); ctx.strokeStyle='rgba(255,215,115,0.82)'; ctx.lineWidth=3*z; ctx.setLineDash([8*z,5*z]);
+        ctx.beginPath(); ctx.moveTo(_p.sx,_p.sy); ctx.lineTo(_p.sx+b.faceX*105*z,_p.sy+b.faceY*105*z); ctx.stroke(); ctx.restore();
+        highContrastRing(_p.sx, _p.sy, 58 * z);
+      }
       img = (b.atkFx > 0 ? W.Art.get(b.def.art + '_atk') : null) || W.Art.get(b.def.art);
       r = 26 * z;
 
@@ -338,6 +537,7 @@ W.Render = (function() {
       ctx.beginPath();
       ctx.ellipse(_p.sx, _p.sy, p.r * z, p.r * 0.55 * z, 0, 0, Math.PI * 2);
       ctx.fill(); ctx.stroke();
+      highContrastRing(_p.sx, _p.sy, p.r * z);
     });
     if (W.Bosses.eachPillar) W.Bosses.eachPillar(function(p) {
       W.Camera.worldToScreenInto(p.wx, p.wy, _p);
@@ -347,6 +547,8 @@ W.Render = (function() {
         ctx.lineWidth = 2 * z; ctx.setLineDash([6*z,4*z]);
         ctx.beginPath(); ctx.arc(_p.sx, _p.sy, rr, 0, Math.PI*2); ctx.fill(); ctx.stroke();
         ctx.setLineDash([]);
+        highContrastRing(_p.sx, _p.sy, rr);
+        drawCenteredFx(W.Art.get('fx_warning'), _p.sx, _p.sy, rr*2.45, 0.48+0.18*Math.sin(artT*9), artT*0.32);
       } else {
         ctx.fillStyle = 'rgba(255,105,20,0.52)';
         ctx.beginPath(); ctx.arc(_p.sx, _p.sy, rr * (0.82 + p.t * 0.4), 0, Math.PI*2); ctx.fill();
@@ -369,7 +571,12 @@ W.Render = (function() {
     var a = W.Calamity.altarPos(), z = W.Camera.zoom;
     W.Camera.worldToScreenInto(a.wx, a.wy, _p);
     if (_p.sx < -120 || _p.sx > W.Camera.vw + 120 || _p.sy < -120 || _p.sy > W.Camera.vh + 120) return;
-    var r = 34 * z;
+    var r = 34 * z, cs=W.Calamity.stats?W.Calamity.stats():null;
+    if(cs&&cs.summoning){
+      drawCenteredFx(W.Art.get('fx_warning'),_p.sx,_p.sy,132*z,0.58+0.2*Math.sin(artT*7),-artT*.22);
+      ctx.strokeStyle='rgba(255,225,155,0.95)';ctx.lineWidth=5*z;ctx.beginPath();
+      ctx.arc(_p.sx,_p.sy,45*z,-Math.PI/2,-Math.PI/2+Math.PI*2*(1-cs.summonLeft/10));ctx.stroke();
+    }
     ctx.fillStyle = W.Calamity.isSummoned() ? 'rgba(70,50,80,0.55)' : 'rgba(110,55,145,0.42)';
     ctx.strokeStyle = 'rgba(215,155,255,0.9)'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(_p.sx, _p.sy, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
@@ -382,8 +589,7 @@ W.Render = (function() {
     ctx.closePath(); ctx.stroke();
     ctx.font = 'bold ' + Math.round(12 * z) + 'px -apple-system, sans-serif';
     ctx.textAlign = 'center'; ctx.fillStyle = '#f0d8ff';
-    var cs=W.Calamity.stats?W.Calamity.stats():null;
-    var altarLabel=W.Calamity.isSummoned()?'災禍召喚中':(cs&&cs.ascensionUnlocked?'飛升祭壇 · 碎片 '+cs.divinityShards:'世界災禍祭壇');
+    var altarLabel=W.Calamity.isSummoned()?'災禍召喚中':(cs&&cs.summoning?'召喚 '+cs.summonName+' · '+Math.ceil(cs.summonLeft)+' 秒（再按取消）':(cs&&cs.ascensionUnlocked?'飛升祭壇 · 碎片 '+cs.divinityShards:'世界災禍祭壇'));
     ctx.fillText(altarLabel, _p.sx, _p.sy - 46 * z);
   }
 
@@ -440,13 +646,10 @@ W.Render = (function() {
     }
 
     if(wingOn){
-      img=W.Art.get('ui/divine_wing_on')||W.Art.get('ui/divine_wing');
-      ctx.save();ctx.globalAlpha=0.62+Math.sin(artT*12)*0.12;
-      if(img)drawArt(img,sx,sy+20*z,66,false);
-      else{
-        ctx.strokeStyle='rgba(170,235,255,0.9)';ctx.lineWidth=4*z;
-        ctx.beginPath();ctx.arc(sx,sy-12*z,42*z,Math.PI*0.2,Math.PI*0.8);ctx.stroke();
-      }
+      /* 翅膀本體由裝備層常駐繪製；發動時只疊加光環。 */
+      ctx.save();ctx.globalAlpha=0.58+Math.sin(artT*12)*0.12;
+      ctx.strokeStyle='rgba(170,235,255,0.9)';ctx.lineWidth=4*z;
+      ctx.beginPath();ctx.arc(sx,sy-12*z,42*z,Math.PI*0.12,Math.PI*0.88);ctx.stroke();
       ctx.restore();
     }
 
@@ -476,6 +679,8 @@ W.Render = (function() {
         ctx.fillStyle = 'rgba(175,55,75,0.12)'; ctx.strokeStyle = 'rgba(255,105,105,0.9)';
         ctx.lineWidth = 2 * z; ctx.setLineDash([7*z,5*z]);
         ctx.beginPath(); ctx.arc(_p.sx, _p.sy, rr, 0, Math.PI*2); ctx.fill(); ctx.stroke(); ctx.setLineDash([]);
+        highContrastRing(_p.sx, _p.sy, rr);
+        drawCenteredFx(W.Art.get('fx_warning'), _p.sx, _p.sy, rr*2.35, 0.5+0.2*Math.sin(artT*10), -artT*0.3);
       } else {
         ctx.fillStyle = 'rgba(235,115,70,0.5)';
         ctx.beginPath(); ctx.arc(_p.sx, _p.sy, rr * (0.7 + m.blast), 0, Math.PI*2); ctx.fill();
@@ -499,6 +704,7 @@ W.Render = (function() {
     if (W.Calamity.eachBone) W.Calamity.eachBone(function(v) {
       W.Camera.worldToScreenInto(v.wx, v.wy, _p);
       var rise = Math.max(0, Math.min(1, (0.85-v.t)/0.5));
+      if(v.t>.35)drawCenteredFx(W.Art.get('fx_warning'),_p.sx,_p.sy,58*z,0.42+0.18*Math.sin(artT*11),artT*.35);
       ctx.fillStyle='rgba(225,215,190,0.9)';ctx.strokeStyle='rgba(90,65,55,0.95)';ctx.lineWidth=2*z;
       ctx.beginPath();ctx.moveTo(_p.sx,_p.sy-30*z*rise);ctx.lineTo(_p.sx-10*z,_p.sy+8*z);ctx.lineTo(_p.sx+10*z,_p.sy+8*z);ctx.closePath();ctx.fill();ctx.stroke();
     });
@@ -510,6 +716,8 @@ W.Render = (function() {
     if (!b || !b.alive) return;
     W.Camera.worldToScreenInto(b.wx, b.wy, _p);
     var sx=_p.sx, sy=_p.sy, pulse=1+0.04*Math.sin(artT*4), r=70*z*pulse;
+    var charge=b.shotWind>0||b.skillWind>0||b.meteorWind>0;
+    if(charge)drawCenteredFx(W.Art.get('fx_warning'),sx,sy+8*z,185*z,0.48+0.24*Math.sin(artT*17),artT*.35);
     ctx.globalAlpha = b.hurt > 0 ? 0.65 : 1;
     var cimg = b.art ? ((b.atkFx > 0 ? W.Art.get(b.art + '_atk') : null) || W.Art.get(b.art)) : null;
     if (cimg) {
@@ -541,8 +749,9 @@ W.Render = (function() {
   function drawSkinAura() {
     if (!W.Skins || !W.Skins.fieldActive()) return;
     W.Camera.worldToScreenInto(W.Player.wx, W.Player.wy, _p);
-    var z=W.Camera.zoom, p=W.Skins.fieldPct(), r=(48+70*(1-p))*z;
-    ctx.strokeStyle=(W.Skins.fieldKind&&W.Skins.fieldKind()==='death'?'rgba(205,190,160,':'rgba(135,70,190,')+(0.25+0.5*p)+')';ctx.lineWidth=4*z;
+    var z=W.Camera.zoom,p=W.Skins.fieldPct(),r=(48+70*(1-p))*z,k=W.Skins.fieldKind?W.Skins.fieldKind():'abyss';
+    var rgb=k==='death'?'205,190,160':(k==='star'?'115,180,255':(k==='phoenix'?'255,112,35':'135,70,190'));
+    ctx.strokeStyle='rgba('+rgb+','+(0.25+0.5*p)+')';ctx.lineWidth=4*z;
     ctx.beginPath();ctx.arc(_p.sx,_p.sy-16*z,r,0,Math.PI*2);ctx.stroke();
   }
 
@@ -948,12 +1157,14 @@ W.Render = (function() {
   }
 
   function drawHurtFlash() {
+    if (W.Settings && (!W.Settings.get('flashes') || W.Settings.get('reducedMotion'))) return;
     if (!W.Stats.isHurt()) return;
     ctx.fillStyle = 'rgba(200,50,40,0.22)';
     ctx.fillRect(0, 0, W.Camera.vw, W.Camera.vh);
   }
 
   function drawEventFlash(dt) {
+    if (W.Settings && (!W.Settings.get('flashes') || W.Settings.get('reducedMotion'))) { flashT = 0; return; }
     if (flashT <= 0) return;
     ctx.save();
     ctx.globalAlpha = Math.min(1, flashT / flashMax);
@@ -962,6 +1173,66 @@ W.Render = (function() {
     ctx.restore();
     flashT -= dt;
     if (flashT < 0) flashT = 0;
+  }
+
+  function guidePill(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  /* 指針固定在玩家頭頂，方向使用世界座標差，因此目標在畫面外也能可靠指路。 */
+  function drawGuideArrow() {
+    if (!W.Guide || !W.Guide.current) return;
+    var g = W.Guide.current();
+    if (!g || !g.on) return;
+    var P = W.Player;
+    W.Camera.worldToScreenInto(P.wx, P.wy, _p);
+    var dx = g.wx - P.wx, dy = g.wy - P.wy;
+    var d = Math.sqrt(dx * dx + dy * dy);
+    var ang = Math.atan2(dy, dx);
+    var s = Math.max(0.84, Math.min(1.18, W.Camera.zoom));
+    var cx = _p.sx, cy = _p.sy - 72 * s;
+    var pulse = 1 + Math.sin(artT * 7) * 0.08;
+    var color = g.arrived ? '#8ff08b' : (g.kind === 'altar' ? '#8fe7ff' : '#ffd65f');
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.75)'; ctx.shadowBlur = 5 * s;
+    ctx.strokeStyle = 'rgba(25,20,12,.9)'; ctx.fillStyle = color; ctx.lineWidth = 3 * s;
+    ctx.beginPath(); ctx.arc(cx, cy, 19 * s * pulse, 0, Math.PI * 2); ctx.stroke();
+
+    if (g.arrived) {
+      ctx.fillStyle = 'rgba(15,45,18,.88)'; ctx.fill();
+      ctx.shadowBlur = 0; ctx.fillStyle = color;
+      ctx.font = 'bold ' + Math.round(22 * s) + 'px -apple-system, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('✓', cx, cy + 1);
+    } else {
+      ctx.translate(cx, cy); ctx.rotate(ang);
+      ctx.beginPath();
+      ctx.moveTo(24 * s * pulse, 0);
+      ctx.lineTo(-10 * s, -11 * s);
+      ctx.lineTo(-5 * s, 0);
+      ctx.lineTo(-10 * s, 11 * s);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+
+    var label = g.label + ' · ' + (g.arrived ? '已抵達' : Math.round(d));
+    ctx.save();
+    ctx.font = 'bold ' + Math.round(11 * s) + 'px -apple-system, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    var tw = Math.min(W.Camera.vw * 0.54, ctx.measureText(label).width + 16 * s);
+    var th = 20 * s, tx = cx - tw / 2, ty = cy - 34 * s;
+    guidePill(tx, ty, tw, th, 8 * s);
+    ctx.fillStyle = 'rgba(9,14,8,.78)'; ctx.fill();
+    ctx.strokeStyle = color; ctx.globalAlpha = 0.72; ctx.lineWidth = 1; ctx.stroke();
+    ctx.globalAlpha = 1; ctx.fillStyle = '#fff7d0';
+    ctx.fillText(label, cx, ty + th / 2 + 0.5);
+    ctx.restore();
   }
 
   function drawOneBuild(s, sx, sy, now) {
@@ -1188,6 +1459,72 @@ W.Render = (function() {
     }
   }
 
+  function drawRotatedEquipment(name, x, y, hWorld, angle, alpha) {
+    var img = W.Art.get(name); if (!img) return false;
+    var h = hWorld * W.Camera.zoom, w = h * (img.width / img.height);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(angle || 0); ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+    ctx.drawImage(img, -w / 2, -h / 2, w, h); ctx.restore();
+    return true;
+  }
+
+  /* 背部裝備先畫，再畫角色；神槍、神劍與神翼不再只是後台數值。 */
+  function drawEquipmentBack() {
+    if (!W.DivineArms || !W.Art) return;
+    var P = W.Player, z = W.Camera.zoom, img, active;
+    W.Camera.worldToScreenInto(P.wx, P.wy, _p);
+    var sx = _p.sx, sy = _p.sy;
+
+    if (W.DivineArms.has('wing') && W.DivineArms.isEquipped('wing')) {
+      active = W.DivineArms.wingActive();
+      img = W.Art.get(active ? 'ui/divine_wing_on' : 'ui/divine_wing') || W.Art.get('ui/divine_wing');
+      ctx.save(); ctx.globalAlpha = active ? 0.9 : 0.5;
+      if (img) drawArt(img, sx, sy + 23 * z, 68, false);
+      ctx.restore();
+    }
+    if (W.DivineArms.has('gun') && W.DivineArms.isEquipped('gun')) {
+      drawRotatedEquipment('ui/divine_gun', sx - 12*z, sy - 24*z, 38, -0.72, 0.72);
+    }
+    if (W.DivineArms.has('sword') && W.DivineArms.isEquipped('sword')) {
+      drawRotatedEquipment('ui/divine_sword', sx + 12*z, sy - 25*z, 40, 0.72, 0.72);
+    }
+  }
+
+  function drawBowInHand(x, y, angle, z) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(angle); ctx.strokeStyle='#8a5b31'; ctx.lineWidth=3*z;
+    ctx.beginPath(); ctx.arc(0, 0, 15*z, -1.05, 1.05); ctx.stroke();
+    ctx.strokeStyle='#e8dfc7'; ctx.lineWidth=1*z; ctx.beginPath();
+    ctx.moveTo(7.5*z,-13*z);ctx.lineTo(7.5*z,13*z);ctx.stroke();ctx.restore();
+  }
+
+  /* 主手與盾牌在角色前景層，會跟著朝向與揮擊移動。 */
+  function drawEquipmentFront() {
+    if (!W.Art) return;
+    var P = W.Player, z = W.Camera.zoom, fx=P.faceX||0, fy=P.faceY||1;
+    var len=Math.sqrt(fx*fx+fy*fy)||1;fx/=len;fy/=len;
+    W.Camera.worldToScreenInto(P.wx,P.wy,_p);
+    var sx=_p.sx,sy=_p.sy-13*z,px=-fy,py=fx;
+    var swing=(slashT>0?Math.sin((slashT/0.16)*Math.PI)*0.9:0);
+    var tool=W.Craft&&W.Craft.equipped?W.Craft.equipped():'';
+    var hx=sx+fx*15*z+px*11*z,hy=sy+fy*10*z+py*7*z;
+    var angle=Math.atan2(fy,fx)+Math.PI/2+swing;
+
+    if(tool==='axe'||tool==='maxe'){
+      ctx.save(); if(tool==='maxe'){ctx.shadowColor='rgba(150,225,255,.9)';ctx.shadowBlur=7*z;}
+      drawRotatedEquipment('ui/axe',hx,hy,31,angle,0.96);ctx.restore();
+    }else if(tool==='pick'||tool==='mpick'){
+      ctx.save(); if(tool==='mpick'){ctx.shadowColor='rgba(150,225,255,.9)';ctx.shadowBlur=7*z;}
+      drawRotatedEquipment('ui/pick',hx,hy,31,angle,0.96);ctx.restore();
+    }else if(tool==='bow'){
+      drawBowInHand(hx,hy,Math.atan2(fy,fx),z);
+    }
+
+    if(W.DivineArms&&W.DivineArms.has('shield')&&W.DivineArms.isEquipped('shield')){
+      var shieldOn=W.DivineArms.shieldActive();
+      var shx=sx+fx*10*z-px*13*z,shy=sy+fy*7*z-py*6*z;
+      drawRotatedEquipment(shieldOn?'ui/divine_shield_on':'ui/divine_shield',shx,shy,31,0,shieldOn?1:0.8);
+    }
+  }
+
   function drawSlash(dt) {
     if (slashT <= 0) return;
     slashT -= dt;
@@ -1230,6 +1567,8 @@ W.Render = (function() {
     artT += dt;
     ctx.fillStyle = '#2c3a22';
     ctx.fillRect(0, 0, W.Camera.vw, W.Camera.vh);
+    ctx.save();
+    ctx.translate(shakeX, shakeY);
     drawChunks();
     if (W.CFG.DEBUG) {
       drawGrid();
@@ -1249,11 +1588,16 @@ W.Render = (function() {
     drawBosses();
     drawMates();
     W.Arrows.each(drawArrow);
+    drawEquipmentBack();
+    drawHonorTrail();
     drawPlayer(dt);
+    drawEquipmentFront();
+    drawHonorCrown();
     drawDivineShield();
     drawDivineWeaponFx();
     drawSkinAura();
     drawSlash(dt);
+    drawFeedbackFx();
     drawCarryGhost();
     drawDmg(dt);
     drawMobs(false);
@@ -1261,12 +1605,15 @@ W.Render = (function() {
     drawBuilds(false);
     drawSites(false);
     drawNight();
-    drawSanity();
     drawSleep(dt);
+    drawGuideArrow();
+    ctx.restore();
+    drawSanity();
     drawHurtFlash();
     drawEventFlash(dt);
     W.Minimap.draw(ctx, W.Camera.vw);
   }
 
-  return { init: init, draw: draw, slash: slash, flash: flash, dmgText: dmgText, sleepFx: sleepFx, setSprite: setSprite };
+  return { init: init, draw: draw, slash: slash, flash: flash, dmgText: dmgText, sleepFx: sleepFx, setSprite: setSprite,
+    impact:impact,travelFx:travelFx,dodgeFx:dodgeFx,phaseFx:phaseFx,shake:shake,stepFrame:stepFrame,slowMotion:slowMotion };
 })();
