@@ -1,4 +1,4 @@
-var CACHE_VERSION = 'wilds-v43';
+var CACHE_VERSION = 'wilds-v46';
 
 /* CORE：缺一不可；其餘素材逐筆快取，單一檔案 404 不會導致整個 Service Worker 安裝失敗。 */
 var CORE = [

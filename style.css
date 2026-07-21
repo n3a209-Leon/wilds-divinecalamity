@@ -224,7 +224,7 @@ button.btn-pop { animation: btnpop .18s ease-out; }
   100% { transform: scale(1); }
 }
 
-#btn-guide, #btn-travel, #btn-equip, #btn-journal, #btn-rewards, #btn-settings, #btn-mute, #btn-sync {
+#btn-guide, #btn-travel, #btn-equip, #btn-skin, #btn-journal, #btn-rewards, #btn-settings, #btn-mute, #btn-sync {
   pointer-events:auto;
   width:44px; height:44px;
   display:block; border-radius:50%;
@@ -238,6 +238,7 @@ button.btn-pop { animation: btnpop .18s ease-out; }
 }
 #btn-travel { border-color:rgba(105,225,240,.52); background:rgba(22,66,73,.58); }
 #btn-equip { border-color:rgba(190,155,255,.52); background:rgba(55,36,82,.58); }
+#btn-skin { border-color:rgba(255,150,200,.55); background:rgba(80,30,55,.6); }
 #btn-journal { border-color:rgba(238,199,104,.6); background:rgba(74,52,19,.62); }
 #btn-settings { border-color:rgba(175,205,220,.52); background:rgba(38,58,67,.62); }
 #btn-rewards {
