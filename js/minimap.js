@@ -67,6 +67,55 @@ W.Minimap = (function() {
       c.fill();
     }
 
+    /* 魔王方位：範圍內畫菱形實際位置，超出範圍就貼邊畫箭頭指方向。
+       未擊敗紅色、已擊敗暗灰。守衛型較小、區域型較大。 */
+    if (W.Bosses && W.Bosses.count) {
+      var bi, b, bx, by, dead, edge, ang, col, sz;
+      for (bi = 0; bi < W.Bosses.count(); bi++) {
+        b = W.Bosses.at(bi);
+        if (!b || !b.site) continue;
+        dead = !b.alive;
+        col = dead ? 'rgba(120,120,120,0.85)' : '#ff5a4a';
+        sz = (b.def && b.def.kind === 'regional') ? 6 : 5;
+
+        bx = half2 + (b.site.wx - W.Player.wx) * scale;
+        by = half2 + (b.site.wy - W.Player.wy) * scale;
+
+        if (bx >= 4 && by >= 4 && bx <= SIZE - 4 && by <= SIZE - 4) {
+          /* 範圍內：實心菱形＋外框，跟遺跡區隔 */
+          c.fillStyle = col;
+          c.beginPath();
+          c.moveTo(bx, by - sz);
+          c.lineTo(bx + sz, by);
+          c.lineTo(bx, by + sz);
+          c.lineTo(bx - sz, by);
+          c.closePath();
+          c.fill();
+          if (!dead) {
+            c.strokeStyle = 'rgba(255,255,255,0.9)';
+            c.lineWidth = 1.5;
+            c.stroke();
+          }
+        } else if (!dead) {
+          /* 超出範圍：貼著邊緣畫箭頭，只對還沒擊敗的王指路 */
+          ang = Math.atan2(by - half2, bx - half2);
+          var ex = half2 + Math.cos(ang) * (half2 - 8);
+          var ey = half2 + Math.sin(ang) * (half2 - 8);
+          c.save();
+          c.translate(ex, ey);
+          c.rotate(ang);
+          c.fillStyle = col;
+          c.beginPath();
+          c.moveTo(6, 0);
+          c.lineTo(-4, -4);
+          c.lineTo(-4, 4);
+          c.closePath();
+          c.fill();
+          c.restore();
+        }
+      }
+    }
+
     c.fillStyle = '#ffef9f';
     c.fillRect(SIZE / 2 - 2, SIZE / 2 - 2, 4, 4);
     c.strokeStyle = 'rgba(255,255,255,0.35)';

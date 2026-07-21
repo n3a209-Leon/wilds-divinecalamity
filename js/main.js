@@ -1327,6 +1327,7 @@ W.Game = (function() {
     });
     on('btn-travel', 'click', openTravel);
     on('btn-equip', 'click', openEquipment);
+    on('btn-skin', 'click', nextChar);
     on('btn-journal', 'click', openJournal);
     on('btn-rewards', 'click', openRewards);
     on('btn-settings', 'click', openSettings);
