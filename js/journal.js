@@ -16,7 +16,7 @@ W.Journal = (function() {
     {id:'regional_one', chapter:'第二章・夥伴與首領', title:'平定第一個區域', desc:'找到並擊敗任一位區域首領。', reward:{metal:2,jerky:2}, track:'auto'},
     {id:'regional_all', chapter:'第二章・夥伴與首領', title:'五大區域平定', desc:'擊敗九頭蛇、聖龍、巨像、天鷹與熔岩魔神。', reward:{metal:5,jerky:4}, track:'auto'},
     {id:'divine_three', chapter:'第三章・神武覺醒', title:'三神武共鳴', desc:'取得任意三件神武，解鎖更強的組合能力。', reward:{arrow:12,soup:2}},
-    {id:'altar', chapter:'第三章・神武覺醒', title:'喚醒世界祭壇', desc:'到達第 20 天，並持有至少一件神武。', reward:{jerky:3,soup:2}, track:'altar'},
+    {id:'altar', chapter:'第三章・神武覺醒', title:'喚醒世界祭壇', desc:'集齊 5 件神武（或撐到第 8 天持有任一件），喚醒世界祭壇。', reward:{jerky:3,soup:2}, track:'altar'},
     {id:'kun', chapter:'第四章・世界災禍', title:'擊敗萬眼巨鯤', desc:'在祭壇召喚並擊敗第一位世界災禍。', reward:{metal:6,soup:3}, track:'altar'},
     {id:'titan', chapter:'第四章・世界災禍', title:'擊敗骸骨泰坦', desc:'再次使用祭壇，終結第二位世界災禍。', reward:{metal:8,jerky:5,soup:3}, track:'altar'},
     {id:'ascension', chapter:'第五章・飛升輪迴', title:'完成第一次飛升', desc:'再次挑戰強化災禍，完成一輪飛升。', reward:{metal:10,jerky:8,soup:5}, track:'altar'}
@@ -48,7 +48,7 @@ W.Journal = (function() {
     }else if(id==='divine_three'){
       ds=W.DivineArms.stats();v=Math.min(3,ds.owned);max=3;text='神武 '+v+'/3';
     }else if(id==='altar'){
-      ds=W.DivineArms.stats();var day=Math.min(20,W.Time.dayNo()),arm=ds.owned>0?1:0;v=day+arm;max=21;text='天數 '+day+'/20・神武 '+arm+'/1';
+      ds=W.DivineArms.stats();var arm=Math.min(5,ds.owned);v=arm;max=5;text='神武 '+arm+'/5';
     }else if(id==='kun'){
       cs=W.Calamity.stats();v=cs.defeatedKun?1:0;text=v?'巨鯤已擊敗':'尚未擊敗萬眼巨鯤';
     }else if(id==='titan'){

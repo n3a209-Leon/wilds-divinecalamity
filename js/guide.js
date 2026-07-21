@@ -55,9 +55,11 @@ W.Guide = (function() {
     var day = W.Time && W.Time.dayNo ? W.Time.dayNo() : 1;
     var owned = W.DivineArms && W.DivineArms.stats ? W.DivineArms.stats().owned : 0;
     if (!unlocked) {
-      if (day < 20 && owned < 1) return '第20天＋任一神武後開啟（尚差 ' + (20 - day) + ' 天與一件神武）';
-      if (day < 20) return '第20天開啟（尚差 ' + (20 - day) + ' 天）';
-      return '取得任一件神武後開啟';
+      /* 門檻已改為「集齊 5 神武 或 第 8 天保底」 */
+      if (owned >= 5) return '神武已集齊，祭壇即將開啟';
+      var lack = 5 - owned;
+      if (day < 8) return '集齊 5 件神武開啟（尚差 ' + lack + ' 件，或撐到第 8 天）';
+      return '快集齊神武！尚差 ' + lack + ' 件（第 8 天後有任一件即開）';
     }
     if (stats && stats.summoned) return '世界災禍戰鬥中';
     if (d <= 82) return '現在按右下角 ☄️ 召喚';

@@ -23,7 +23,10 @@ W.Calamity = (function() {
   function current(){return activeId?bosses[activeId]:null;}
   function nextId(){if(!defeated.kun)return 'kun';if(!defeated.titan)return 'titan';return replayNext;}
   function update(dt){
-    var ready=W.Time.dayNo()>=20&&W.DivineArms&&W.DivineArms.stats().owned>0;
+    /* 開災禍門檻：集齊 5 件神武即可開啟；若一直沒集齊，Day 8 保底強制開，避免卡關。
+       這把「等時鐘」改成「湊神武」——玩家有明確的追逐目標。 */
+    var arms=(W.DivineArms&&W.DivineArms.stats().owned)||0;
+    var ready=arms>=5||(W.Time.dayNo()>=8&&arms>0);
     if(ready&&!unlocked){unlocked=true;if(!announced&&W.Game&&W.Game.onCalamityGateOpen){announced=true;W.Game.onCalamityGateOpen(altar);}}
     if(summoning){
       summonT-=dt;
