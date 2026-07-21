@@ -1,4 +1,4 @@
-var CACHE_VERSION = 'wilds-v33';
+var CACHE_VERSION = 'wilds-v43';
 
 /* CORE：缺一不可；其餘素材逐筆快取，單一檔案 404 不會導致整個 Service Worker 安裝失敗。 */
 var CORE = [
@@ -17,22 +17,27 @@ var CORE = [
   './js/craft.js',
   './js/divine-arms.js',
   './js/firebase-config.js',
+  './js/guide.js',
   './js/input.js',
   './js/inventory.js',
+  './js/journal.js',
   './js/main.js',
   './js/minimap.js',
   './js/mobs.js',
   './js/player.js',
   './js/render.js',
   './js/resources.js',
+  './js/rewards.js',
   './js/rng.js',
   './js/save.js',
+  './js/settings.js',
   './js/sfx.js',
   './js/sites.js',
   './js/skins.js',
   './js/stats.js',
   './js/store.js',
   './js/time.js',
+  './js/travel.js',
   './js/world.js'
 ];
 
@@ -76,17 +81,26 @@ var ASSETS = [
   './assets/deer.png',
   './assets/deer_walk.png',
   './assets/fence.png',
+  './assets/fx_hit.png',
+  './assets/fx_dodge.png',
+  './assets/fx_phase.png',
+  './assets/fx_travel.png',
+  './assets/fx_warning.png',
   './assets/grass.png',
   './assets/grass_cut.png',
   './assets/icon-192.png',
   './assets/icon-512.png',
   './assets/mate_archer.png',
+  './assets/mate_archer_sheet.png',
   './assets/mate_archer_walk.png',
   './assets/mate_cat.png',
+  './assets/mate_cat_sheet.png',
   './assets/mate_cat_walk.png',
   './assets/mate_knight.png',
+  './assets/mate_knight_sheet.png',
   './assets/mate_knight_walk.png',
   './assets/mate_sprite.png',
+  './assets/mate_sprite_sheet.png',
   './assets/mate_sprite_walk.png',
   './assets/player.png',
   './assets/player2.png',
@@ -138,17 +152,25 @@ var ASSETS = [
 ];
 
 self.addEventListener('install', function(e) {
-  self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE_VERSION).then(function(c) {
       return c.addAll(CORE).then(function() {
-        /* 素材逐筆加，失敗就跳過，不拖垮安裝。 */
-        return Promise.all(ASSETS.map(function(u) {
+        /* 首屏常用素材先離線化；Boss／災禍／夥伴／神武在遊戲中按需快取。 */
+        return Promise.all(ASSETS.filter(isStartupAsset).map(function(u) {
           return c.add(u)['catch'](function() { return null; });
         }));
       });
     })
   );
+});
+
+function isStartupAsset(u) {
+  return !/(\/boss_|\/cal_|\/mate_|\/ui\/divine_|\/player.*_(abyss|death|end|phoenix|star))/i.test(u);
+}
+
+/* 新版本先待命；玩家確認並完成存檔後，頁面才要求切換。 */
+self.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', function(e) {

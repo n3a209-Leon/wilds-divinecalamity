@@ -31,10 +31,29 @@
   <div id="hud-right">
     <div class="hud-line" id="hud-fps">-- FPS</div>
     <div class="hud-line" id="hud-time">--</div>
-    <button id="btn-mute">🔊</button>
-    <button id="btn-sync">☁️</button>
-    <button id="btn-diag">🔧</button>
+    <div id="hud-tools">
+      <button id="btn-guide" aria-label="切換導航目標" title="切換區域首領／祭壇">🧭</button>
+      <button id="btn-travel" aria-label="快速移動" title="快速移動">🌀</button>
+      <button id="btn-equip" aria-label="裝備欄" title="裝備欄">🛡️</button>
+      <button id="btn-journal" aria-label="冒險日誌" title="冒險日誌">📜</button>
+      <button id="btn-rewards" aria-label="獎勵中心" title="獎勵中心">🎁<span id="reward-badge"></span></button>
+      <button id="btn-settings" aria-label="遊戲設定" title="遊戲設定">⚙️</button>
+      <button id="btn-mute" aria-label="切換音效" title="切換音效">🔊</button>
+      <button id="btn-sync" aria-label="雲端同步" title="雲端同步">☁️</button>
+      <button id="btn-diag" aria-label="開啟診斷" title="診斷工具">🔧</button>
+    </div>
   </div>
+</div>
+
+<div id="guide-info">
+  <div id="guide-title">🧭 尋找區域首領</div>
+  <div id="guide-hint">點右上角指南針切換目標</div>
+</div>
+
+<div id="journal-track">
+  <div id="journal-track-title">📜 冒險日誌</div>
+  <div id="journal-track-progress"><div id="journal-track-fill"></div></div>
+  <div id="journal-track-text">正在整理下一個目標…</div>
 </div>
 
 <div id="toast"></div>
@@ -42,10 +61,11 @@
 <div id="joy-base"><div id="joy-knob"></div></div>
 
 <div id="actions">
-  <button class="act-btn" id="btn-a">👊</button>
-  <button class="act-btn" id="btn-b">🗺️</button>
-  <button class="act-btn" id="btn-d">🔨</button>
-  <button class="act-btn" id="btn-c">🎒</button>
+  <button class="act-btn roll-btn" id="btn-roll" aria-label="翻滾閃避" title="翻滾閃避">💨<span id="roll-cooldown"></span></button>
+  <button class="act-btn" id="btn-a" aria-label="攻擊或採集">👊</button>
+  <button class="act-btn" id="btn-b" aria-label="開啟小地圖">🗺️</button>
+  <button class="act-btn" id="btn-d" aria-label="開啟製作">🔨</button>
+  <button class="act-btn" id="btn-c" aria-label="開啟背包">🎒</button>
 </div>
 
 <div id="bag-panel">
@@ -92,17 +112,83 @@
   <button id="btn-sleep">睡覺（夜晚待在睡袋旁）</button>
   <button id="craft-close">關閉</button>
 </div>
+<div id="travel-panel" class="loadout-panel">
+  <div class="loadout-head">🌀 快速移動</div>
+  <div class="loadout-sub">親自探索過的首領領地會永久解鎖；戰鬥中不能傳送。</div>
+  <div id="travel-list" class="loadout-scroll"></div>
+  <button class="loadout-close" id="travel-close">關閉</button>
+</div>
+<div id="equip-panel" class="loadout-panel">
+  <div class="loadout-head">🛡️ 角色裝備</div>
+  <div class="loadout-sub">裝備會直接顯示在角色身上，只有裝上的工具與神武會發揮效果。</div>
+  <div id="equip-summary"></div>
+  <div class="equip-section-title">主手工具（只能裝一件）</div>
+  <div id="tool-grid" class="equip-grid"></div>
+  <div class="equip-section-title">神武槽（可個別裝卸）</div>
+  <div id="divine-grid" class="equip-grid divine-grid"></div>
+  <button class="loadout-close" id="equip-close">關閉</button>
+</div>
+<div id="journal-panel" class="loadout-panel">
+  <div class="loadout-head">📜 冒險日誌</div>
+  <div class="loadout-sub">從荒野求生到世界災禍。完成目標後親自領取獎勵，不會蓋掉舊存檔進度。</div>
+  <div id="journal-summary"></div>
+  <div id="journal-list" class="loadout-scroll"></div>
+  <button class="loadout-close" id="journal-close">關閉</button>
+</div>
+<div id="reward-panel" class="loadout-panel">
+  <div class="loadout-head">🎁 荒野獎勵中心</div>
+  <div class="loadout-sub">你的首領戰、冒險日誌與飛升成果都會留在這裡。Skin 會依目前角色套用專屬動畫。</div>
+  <div id="reward-summary"></div>
+  <button id="reward-journal-link">📜 查看待領取的冒險日誌獎勵</button>
+  <div class="reward-section-title">傳說 Skin 收藏</div>
+  <div id="reward-list" class="loadout-scroll"></div>
+  <button class="loadout-close" id="reward-close">關閉</button>
+</div>
+<div id="settings-panel" class="loadout-panel">
+  <div class="loadout-head">⚙️ 遊戲設定</div>
+  <div class="loadout-sub">只儲存在這台裝置，不會改動角色存檔或雲端進度。</div>
+  <div id="settings-list" class="settings-list"></div>
+  <button class="settings-reset" id="settings-reset">恢復預設值</button>
+  <button class="loadout-close" id="settings-close">關閉</button>
+</div>
+<div id="cloud-conflict-panel" class="loadout-panel">
+  <div class="loadout-head">☁️ 存檔版本比較</div>
+  <div class="loadout-sub">兩份進度不會自動混合。請比較日期與主要成果，再選擇要保留哪一份。</div>
+  <div class="cloud-compare-grid">
+    <section class="cloud-save-card local"><h3>📱 本機存檔</h3><div id="conflict-local"></div></section>
+    <section class="cloud-save-card remote"><h3>☁️ 雲端存檔</h3><div id="conflict-remote"></div></section>
+  </div>
+  <div class="cloud-choice-row">
+    <button id="conflict-keep-local">保留本機並上傳</button>
+    <button id="conflict-use-cloud">使用雲端覆蓋</button>
+  </div>
+  <button class="loadout-close" id="conflict-close">取消</button>
+</div>
+<div id="update-panel" class="loadout-panel">
+  <div class="loadout-head">🆕 新版本已準備完成</div>
+  <div class="loadout-sub">先保存目前進度，再安全切換到新版。你也可以稍後再更新，遊戲不會被強制重整。</div>
+  <div class="update-card">更新只會替換程式與快取素材，不會清除本機存檔。</div>
+  <div class="update-actions">
+    <button id="btn-update-now">存檔並立即更新</button>
+    <button id="btn-update-later">稍後提醒</button>
+  </div>
+</div>
 <div id="diag-panel">
   <div id="diag-body"></div>
-  <div id="diag-actions">
+  <div class="diag-actions">
     <button class="diag-btn" id="btn-cloud">雲端登入</button>
     <button class="diag-btn" id="btn-up">上傳雲端</button>
     <button class="diag-btn" id="btn-down">下載雲端</button>
   </div>
-  <div id="diag-actions">
+  <div class="diag-actions">
     <button class="diag-btn" id="btn-save">立即存檔</button>
     <button class="diag-btn" id="btn-load">讀取存檔</button>
     <button class="diag-btn danger" id="btn-wipe">清除存檔</button>
+  </div>
+  <div class="diag-actions">
+    <button class="diag-btn" id="btn-export">匯出備份</button>
+    <button class="diag-btn" id="btn-import">匯入備份</button>
+    <input id="save-file-input" type="file" accept=".json,application/json" hidden>
   </div>
   <button id="diag-close">關閉</button>
 </div>
@@ -136,6 +222,7 @@ window.addEventListener('error', function(e) {
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/config.js"></script>
+<script src="js/settings.js"></script>
 <script src="js/sfx.js"></script>
 <script src="js/rng.js"></script>
 <script src="js/world.js"></script>
@@ -153,7 +240,11 @@ window.addEventListener('error', function(e) {
 <script src="js/divine-arms.js"></script>
 <script src="js/bosses.js"></script>
 <script src="js/calamity.js"></script>
+<script src="js/guide.js"></script>
+<script src="js/travel.js"></script>
+<script src="js/journal.js"></script>
 <script src="js/skins.js"></script>
+<script src="js/rewards.js"></script>
 <script src="js/craft.js"></script>
 <script src="js/time.js"></script>
 <script src="js/cloud.js"></script>
