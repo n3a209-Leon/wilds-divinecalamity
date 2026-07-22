@@ -46,7 +46,7 @@ W.Calamity = (function() {
     if(attackReady(b,'shotT','shotWind',.58,dt)){b.atkFx=0.55;eyeVolley(b,b.phase===1?7:(b.phase===2?11:15),250+b.phase*35);b.shotT=b.phase===3?1.15:(b.phase===2?1.7:2.25);}
     if(b.phase>=2&&attackReady(b,'skillT','skillWind',.76,dt)){spawnVoid(W.Player.wx,W.Player.wy,b.phase===3?185:155);spawnEye(b.wx+90,b.wy+20);b.skillT=b.phase===3?6.2:8.5;}
     if(attackReady(b,'meteorT','meteorWind',.82,dt)){meteorRain(b,b.phase===1?3:(b.phase===2?5:8));b.meteorT=b.phase===3?4.2:(b.phase===2?5.5:7.5);}
-    if(d<90&&b.contactT<=0){b.contactT=1.1;damagePlayer(22+b.phase*5,'kun-contact');}
+    if(d<90&&b.contactT<=0){b.contactT=1.1;damagePlayer(22+b.phase*5,'kun-contact',b.wx,b.wy);}
   }
   function updateTitan(b,dt){
     var dx=W.Player.wx-b.wx,dy=W.Player.wy-b.wy,d=Math.sqrt(dx*dx+dy*dy)||1;b.phase=phaseOf(b);tickBoss(b,dt);
@@ -54,7 +54,7 @@ W.Calamity = (function() {
     if(attackReady(b,'shotT','shotWind',.58,dt)){b.atkFx=0.55;boneFan(b,b.phase===1?5:(b.phase===2?8:12));b.shotT=b.phase===3?1.25:(b.phase===2?1.8:2.5);}
     if(attackReady(b,'skillT','skillWind',.76,dt)){boneCage(W.Player.wx,W.Player.wy,b.phase===3?10:7);b.skillT=b.phase===3?4.8:(b.phase===2?6.2:7.5);}
     if(attackReady(b,'meteorT','meteorWind',.82,dt)){spawnShock(b.wx,b.wy,b.phase===3?235:(b.phase===2?200:170));b.meteorT=b.phase===3?4.0:(b.phase===2?5.3:6.8);}
-    if(d<105&&b.contactT<=0){b.contactT=.95;damagePlayer(28+b.phase*6,'titan-smash');}
+    if(d<105&&b.contactT<=0){b.contactT=.95;damagePlayer(28+b.phase*6,'titan-smash',b.wx,b.wy);}
   }
   function tickBoss(b,dt){b.hurt=Math.max(0,b.hurt-dt);b.atkFx=Math.max(0,(b.atkFx||0)-dt);b.shotT-=dt;b.skillT-=dt;b.meteorT-=dt;b.contactT-=dt;}
   function eyeVolley(b,count,speed){var base=Math.atan2(W.Player.wy-b.wy,W.Player.wx-b.wx),a,j;for(j=0;j<count;j++){a=base+(j-(count-1)/2)*.115;spawnBolt(b.wx,b.wy-35,Math.cos(a)*speed,Math.sin(a)*speed,9+b.phase*2,'void');}if(b.phase===3)for(j=0;j<8;j++){a=j*Math.PI/4;spawnBolt(b.wx,b.wy,Math.cos(a)*220,Math.sin(a)*220,10,'void');}}
@@ -69,14 +69,14 @@ W.Calamity = (function() {
   function spawnShock(x,y,maxR){for(var j=0;j<shocks.length;j++)if(!shocks[j].on){var s=shocks[j];s.on=true;s.wx=x;s.wy=y;s.t=1.15;s.r=18;s.maxR=maxR;s.hit=false;return;}}
   function updateHazards(dt){
     var j,p,dx,dy,d,e;
-    for(j=0;j<bolts.length;j++){p=bolts[j];if(!p.on)continue;p.t-=dt;if(p.t<=0){p.on=false;continue;}p.wx+=p.vx*dt;p.wy+=p.vy*dt;dx=W.Player.wx-p.wx;dy=W.Player.wy-p.wy;if(dx*dx+dy*dy<25*25){p.on=false;damagePlayer(p.dmg,p.kind==='bone'?'bone-bolt':'kun-eye-ray');}}
-    if(voidField.on){voidField.t-=dt;voidField.tick-=dt;if(voidField.t<=0)voidField.on=false;else{dx=voidField.wx-W.Player.wx;dy=voidField.wy-W.Player.wy;d=Math.sqrt(dx*dx+dy*dy)||1;if(d<voidField.r*1.55){var pull=(1-d/(voidField.r*1.55))*115;W.Player.wx+=dx/d*pull*dt;W.Player.wy+=dy/d*pull*dt;}if(d<voidField.r&&voidField.tick<=0){voidField.tick=.65;damagePlayer(9,'abyss-void');}}}
-    for(j=0;j<meteors.length;j++){p=meteors[j];if(!p.on)continue;if(p.t>0){p.t-=dt;continue;}p.blast-=dt;if(!p.hit){p.hit=true;dx=W.Player.wx-p.wx;dy=W.Player.wy-p.wy;if(dx*dx+dy*dy<p.r*p.r)damagePlayer(28,'kun-meteor');}if(p.blast<=0)p.on=false;}
-    for(j=0;j<eyes.length;j++){e=eyes[j];if(!e.on||!e.alive)continue;e.ang+=dt*1.5;e.atkT-=dt;dx=W.Player.wx-e.wx;dy=W.Player.wy-e.wy;d=Math.sqrt(dx*dx+dy*dy)||1;e.wx+=dx/d*42*dt;e.wy+=dy/d*42*dt;if(e.atkT<=0){e.atkT=1.8;spawnBolt(e.wx,e.wy,dx/d*270,dy/d*270,8,'void');}if(d<34){e.alive=false;e.on=false;damagePlayer(12,'abyss-eye');}}
-    for(j=0;j<bones.length;j++){p=bones[j];if(!p.on)continue;p.t-=dt;if(p.t<=.35&&!p.hit){p.hit=true;dx=W.Player.wx-p.wx;dy=W.Player.wy-p.wy;if(dx*dx+dy*dy<p.r*p.r)damagePlayer(24,'bone-spike');}if(p.t<=0)p.on=false;}
-    for(j=0;j<shocks.length;j++){p=shocks[j];if(!p.on)continue;p.t-=dt;p.r+=(p.maxR-p.r)*Math.min(1,dt*5);dx=W.Player.wx-p.wx;dy=W.Player.wy-p.wy;d=Math.sqrt(dx*dx+dy*dy);if(!p.hit&&Math.abs(d-p.r)<24){p.hit=true;damagePlayer(30,'titan-shockwave');}if(p.t<=0)p.on=false;}
+    for(j=0;j<bolts.length;j++){p=bolts[j];if(!p.on)continue;p.t-=dt;if(p.t<=0){p.on=false;continue;}p.wx+=p.vx*dt;p.wy+=p.vy*dt;dx=W.Player.wx-p.wx;dy=W.Player.wy-p.wy;if(dx*dx+dy*dy<25*25){p.on=false;damagePlayer(p.dmg,p.kind==='bone'?'bone-bolt':'kun-eye-ray',p.wx,p.wy);}}
+    if(voidField.on){voidField.t-=dt;voidField.tick-=dt;if(voidField.t<=0)voidField.on=false;else{dx=voidField.wx-W.Player.wx;dy=voidField.wy-W.Player.wy;d=Math.sqrt(dx*dx+dy*dy)||1;if(d<voidField.r*1.55){var pull=(1-d/(voidField.r*1.55))*115;W.Player.wx+=dx/d*pull*dt;W.Player.wy+=dy/d*pull*dt;}if(d<voidField.r&&voidField.tick<=0){voidField.tick=.65;damagePlayer(9,'abyss-void',voidField.wx,voidField.wy);}}}
+    for(j=0;j<meteors.length;j++){p=meteors[j];if(!p.on)continue;if(p.t>0){p.t-=dt;continue;}p.blast-=dt;if(!p.hit){p.hit=true;dx=W.Player.wx-p.wx;dy=W.Player.wy-p.wy;if(dx*dx+dy*dy<p.r*p.r)damagePlayer(28,'kun-meteor',p.wx,p.wy);}if(p.blast<=0)p.on=false;}
+    for(j=0;j<eyes.length;j++){e=eyes[j];if(!e.on||!e.alive)continue;e.ang+=dt*1.5;e.atkT-=dt;dx=W.Player.wx-e.wx;dy=W.Player.wy-e.wy;d=Math.sqrt(dx*dx+dy*dy)||1;e.wx+=dx/d*42*dt;e.wy+=dy/d*42*dt;if(e.atkT<=0){e.atkT=1.8;spawnBolt(e.wx,e.wy,dx/d*270,dy/d*270,8,'void');}if(d<34){e.alive=false;e.on=false;damagePlayer(12,'abyss-eye',e.wx,e.wy);}}
+    for(j=0;j<bones.length;j++){p=bones[j];if(!p.on)continue;p.t-=dt;if(p.t<=.35&&!p.hit){p.hit=true;dx=W.Player.wx-p.wx;dy=W.Player.wy-p.wy;if(dx*dx+dy*dy<p.r*p.r)damagePlayer(24,'bone-spike',p.wx,p.wy);}if(p.t<=0)p.on=false;}
+    for(j=0;j<shocks.length;j++){p=shocks[j];if(!p.on)continue;p.t-=dt;p.r+=(p.maxR-p.r)*Math.min(1,dt*5);dx=W.Player.wx-p.wx;dy=W.Player.wy-p.wy;d=Math.sqrt(dx*dx+dy*dy);if(!p.hit&&Math.abs(d-p.r)<24){p.hit=true;damagePlayer(30,'titan-shockwave',p.wx,p.wy);}if(p.t<=0)p.on=false;}
   }
-  function damagePlayer(amount,source){if(activeAscended)amount=Math.round(amount*(1.18+Math.min(ascensionCycle,8)*0.06));var dmg=W.DivineArms?W.DivineArms.absorbDamage(amount,source):amount;if(dmg>0&&W.Stats.damage(dmg)&&W.Game&&W.Game.onBossHitPlayer)W.Game.onBossHitPlayer();}
+  function damagePlayer(amount,source,sourceWx,sourceWy){if(activeAscended)amount=Math.round(amount*(1.18+Math.min(ascensionCycle,8)*0.06));if(W.Stats.damage(amount,source,sourceWx,sourceWy)&&W.Game&&W.Game.onBossHitPlayer)W.Game.onBossHitPlayer();}
   function canSummon(){return unlocked&&!activeId&&!summoning&&!!nextId();}
   function distance(wx,wy){var dx=altar.wx-wx,dy=altar.wy-wy;return Math.sqrt(dx*dx+dy*dy);}
   function near(wx,wy){return (canSummon()||summoning)&&distance(wx,wy)<=(summoning?116:82);}

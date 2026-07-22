@@ -16,6 +16,7 @@ W.Art = (function() {
     'mate_knight', 'mate_knight_walk', 'mate_archer', 'mate_archer_walk',
     'mate_cat', 'mate_cat_walk', 'mate_sprite', 'mate_sprite_walk',
     'mate_knight_sheet', 'mate_archer_sheet', 'mate_cat_sheet', 'mate_sprite_sheet',
+    'mate_laopi_sheet',
     'boss_troll', 'boss_troll_atk', 'boss_shade', 'boss_shade_atk',
     'boss_hydra', 'boss_hydra_atk', 'boss_dragon', 'boss_dragon_atk',
     'boss_colossus', 'boss_colossus_atk', 'boss_eagle', 'boss_eagle_atk',
@@ -44,7 +45,7 @@ W.Art = (function() {
   var started = false;
   var PRELOAD = [
     'tree','rock','grass','berry','deer','rabbit','wolf',
-    'campfire','bed','workbench','wall','chest','fx_hit','fx_dodge','fx_warning'
+    'campfire','bed','workbench','wall','chest','fx_hit','fx_dodge','fx_warning','mate_laopi_sheet'
   ];
   var ki;
   for (ki = 0; ki < NAMES.length; ki++) known[NAMES[ki]] = true;

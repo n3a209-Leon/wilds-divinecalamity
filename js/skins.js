@@ -21,7 +21,10 @@ W.Skins=(function(){
       sprites:['assets/player_phoenix.png','assets/player2_phoenix.png'],passive:true},
     {id:'end',name:'終焉',rarity:'終局神話',condition:'完成第三次飛升輪迴',
       ability:'神武冷卻縮短 10%，但夜間承受的敵人傷害提高 10%。',
-      sprites:['assets/player_end.png','assets/player2_end.png'],passive:true}
+      sprites:['assets/player_end.png','assets/player2_end.png'],passive:true},
+    {id:'found_family',name:'找到的家人',rarity:'羈絆紀念',condition:'同行 3 天、老皮擋傷 8 次，並共同擊敗任一首領',
+      ability:'純外觀 Skin；不疊加額外戰鬥能力。',
+      sprites:['assets/player_found_family.png','assets/player2_found_family.png'],passive:true}
   ];
   var DEFS={},owned={},equipped='',cd=0,fieldT=0,phoenixT=0,pulses=0,phoenixCycle=-1,i;
   for(i=0;i<LIST.length;i++)DEFS[LIST[i].id]=LIST[i];

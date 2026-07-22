@@ -11,7 +11,7 @@ W.Save = (function() {
   var KEY = 'save';
   var BACKUP_1 = 'save_backup_1';
   var BACKUP_2 = 'save_backup_2';
-  var VERSION = 19;
+  var VERSION = 20;
 
   var db = null;
   var ok = false;
@@ -177,6 +177,7 @@ W.Save = (function() {
       sites: W.Sites.exportData(),
       store: W.Store.exportData(),
       mates: W.Mates.exportData(),
+      bondMate: W.BondMate ? W.BondMate.exportData() : {},
       bosses: W.Bosses.exportData(),
       divineArms: W.DivineArms.exportData(),
       calamity: W.Calamity.exportData(),
@@ -216,6 +217,7 @@ W.Save = (function() {
     if (W.Skins) W.Skins.importData(data.skins);
     if (W.Rewards) W.Rewards.importData(data.rewards);
     W.Mates.importData(data.mates);
+    if (W.BondMate) W.BondMate.importData(data.bondMate);
     W.Store.importData(data.store);
     lastOverflow = W.Store.absorbOverflow();
     if (data.home && isFinite(data.home.wx) && isFinite(data.home.wy)) {
@@ -378,6 +380,18 @@ W.Save = (function() {
       v = 19;
     }
 
+    if (v === 19) {
+      /* v19 沒有常駐老皮的羈絆記憶與配對 Skin 進度。 */
+      if (!data.bondMate) data.bondMate = {
+        introduced: true, memoryBits: 0, daysTogether: 0,
+        lastBondDay: data.time && typeof data.time.day === 'number' ? Math.max(1, Math.floor(data.time.day)) : 1,
+        bossWins: 0, calamityWins: 0, blocks: 0, pulls: 0, rescues: 0,
+        lastRescueDay: -1, lastRecallDay: -1
+      };
+      data.v = 20;
+      v = 20;
+    }
+
     /* 種子不同代表是另一個世界，座標與採集狀態不可沿用，只保留背包 */
     if (data.seed !== W.CFG.SEED) {
       data.player = null;
@@ -387,6 +401,7 @@ W.Save = (function() {
       data.sites = [];
       data.store = {};
       data.mates = {};
+      data.bondMate = {};
       data.bosses = {};
       data.divineArms = {};
       data.calamity = {};
@@ -475,6 +490,7 @@ W.Save = (function() {
     if (W.Skins) W.Skins.clear();
     if (W.Rewards) W.Rewards.clear();
     W.Mates.clear();
+    if (W.BondMate) W.BondMate.clear();
     lastSaved = 0;
     lastRecovery = '';
     return Promise.all([remove(), removeAt(BACKUP_1), removeAt(BACKUP_2)]).then(function() { return true; });

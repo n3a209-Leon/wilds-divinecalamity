@@ -392,6 +392,138 @@ W.Render = (function() {
     ctx.restore();
   }
 
+  /* 夥伴頭頂話泡：白底圓角框＋小尾巴，畫在名字上方。淡入淡出。 */
+  var _cp = { sx: 0, sy: 0 };
+  function drawSages() {
+    if (!W.Sages || !W.Sages.eachSpot) return;
+    var z = W.Camera.zoom;
+    /* 生物本體：一坨軟趴趴的爛泥（向量佔位，art 登錄後無痛換圖） */
+    W.Sages.eachSpot(function(s) {
+      W.Camera.worldToScreenInto(s.wx, s.wy, _p);
+      if (_p.sx < -60 || _p.sx > W.Camera.vw + 60 || _p.sy < -60 || _p.sy > W.Camera.vh + 60) return;
+      var img = W.Art ? W.Art.get('sage') : null;
+      var sx = _p.sx, sy = _p.sy;
+      if (img) {
+        ctx.drawImage(img, sx - 17 * z, sy - 30 * z, 34 * z, 32 * z);
+      } else {
+        ctx.save();
+        ctx.fillStyle = 'rgba(40,32,24,0.16)';
+        ctx.beginPath(); ctx.ellipse(sx, sy + 2 * z, 15 * z, 5 * z, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e6c65f';
+        ctx.beginPath(); ctx.ellipse(sx, sy - 7 * z, 14 * z, 11 * z, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(0,0,0,0.10)';
+        ctx.beginPath(); ctx.ellipse(sx, sy - 1 * z, 14 * z, 4 * z, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#3a2f1c'; ctx.lineWidth = 2 * z; ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(sx - 7 * z, sy - 9 * z); ctx.lineTo(sx - 3 * z, sy - 9 * z);
+        ctx.moveTo(sx + 3 * z, sy - 9 * z); ctx.lineTo(sx + 7 * z, sy - 9 * z);
+        ctx.stroke();
+        ctx.restore();
+      }
+    });
+    /* 話泡：沿用對話框樣式（自足，不動 drawChatter） */
+    W.Sages.each(function(wx, wy, text, life) {
+      W.Camera.worldToScreenInto(wx, wy, _p);
+      if (_p.sx < -140 || _p.sx > W.Camera.vw + 140 || _p.sy < -140 || _p.sy > W.Camera.vh + 140) return;
+      var alpha = Math.min(1, life * 3);
+      var fs = Math.round(12 * z);
+      ctx.font = 'bold ' + fs + 'px -apple-system, sans-serif';
+      var tw = ctx.measureText(text).width;
+      var padX = 9 * z, padY = 6 * z;
+      var bw = tw + padX * 2, bh = fs + padY * 2;
+      var bx = _p.sx - bw / 2;
+      var by = _p.sy - 30 * z - bh;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = 'rgba(252,250,245,0.96)';
+      ctx.strokeStyle = 'rgba(40,32,24,0.9)';
+      ctx.lineWidth = 2 * z;
+      var rr = 8 * z;
+      ctx.beginPath();
+      ctx.moveTo(bx + rr, by);
+      ctx.lineTo(bx + bw - rr, by);
+      ctx.arc(bx + bw - rr, by + rr, rr, -Math.PI / 2, 0);
+      ctx.lineTo(bx + bw, by + bh - rr);
+      ctx.arc(bx + bw - rr, by + bh - rr, rr, 0, Math.PI / 2);
+      ctx.lineTo(bx + rr, by + bh);
+      ctx.arc(bx + rr, by + bh - rr, rr, Math.PI / 2, Math.PI);
+      ctx.lineTo(bx, by + rr);
+      ctx.arc(bx + rr, by + rr, rr, Math.PI, -Math.PI / 2);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(_p.sx - 5 * z, by + bh - 1);
+      ctx.lineTo(_p.sx, by + bh + 6 * z);
+      ctx.lineTo(_p.sx + 5 * z, by + bh - 1);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(252,250,245,0.96)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(40,32,24,0.9)'; ctx.stroke();
+      ctx.fillStyle = '#2a2018';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(text, _p.sx, by + bh / 2);
+      ctx.restore();
+    });
+  }
+
+  function drawChatter() {
+    if (!W.Chatter || !W.Chatter.each) return;
+    var z = W.Camera.zoom;
+    W.Chatter.each(function(m, text, life) {
+      if (!m || !m.recruited) return;
+      W.Camera.worldToScreenInto(m.wx, m.wy, _cp);
+      if (_cp.sx < -120 || _cp.sx > W.Camera.vw + 120 || _cp.sy < -120 || _cp.sy > W.Camera.vh + 120) return;
+
+      var alpha = Math.min(1, life * 3);           /* 最後 1/3 秒淡出 */
+      var fs = Math.round(12 * z);
+      ctx.font = 'bold ' + fs + 'px -apple-system, sans-serif';
+      var tw = ctx.measureText(text).width;
+      var padX = 9 * z, padY = 6 * z;
+      var bw = tw + padX * 2, bh = fs + padY * 2;
+      var bx = _cp.sx - bw / 2;
+      var by = _cp.sy - 34 * z - bh;               /* 名字(-16)再往上 */
+
+      ctx.save();
+      ctx.globalAlpha = alpha;
+
+      /* 框 */
+      ctx.fillStyle = 'rgba(252,250,245,0.96)';
+      ctx.strokeStyle = 'rgba(40,32,24,0.9)';
+      ctx.lineWidth = 2 * z;
+      var rr = 8 * z;
+      ctx.beginPath();
+      ctx.moveTo(bx + rr, by);
+      ctx.lineTo(bx + bw - rr, by);
+      ctx.arc(bx + bw - rr, by + rr, rr, -Math.PI / 2, 0);
+      ctx.lineTo(bx + bw, by + bh - rr);
+      ctx.arc(bx + bw - rr, by + bh - rr, rr, 0, Math.PI / 2);
+      ctx.lineTo(bx + rr, by + bh);
+      ctx.arc(bx + rr, by + bh - rr, rr, Math.PI / 2, Math.PI);
+      ctx.lineTo(bx, by + rr);
+      ctx.arc(bx + rr, by + rr, rr, Math.PI, -Math.PI / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      /* 尾巴 */
+      ctx.beginPath();
+      ctx.moveTo(_cp.sx - 5 * z, by + bh - 1);
+      ctx.lineTo(_cp.sx, by + bh + 6 * z);
+      ctx.lineTo(_cp.sx + 5 * z, by + bh - 1);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(252,250,245,0.96)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(40,32,24,0.9)';
+      ctx.stroke();
+
+      /* 字 */
+      ctx.fillStyle = '#2a2018';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, _cp.sx, by + bh / 2);
+      ctx.restore();
+    });
+  }
+
   function drawMates() {
     if (!W.Mates) return;
     var i, m, img, sheet, frameNo, z, r, h, cg, ch;
@@ -455,6 +587,45 @@ W.Render = (function() {
           ctx.stroke();
         }
       }
+    }
+  }
+
+  function drawBondMateFallback(m, sx, sy, z) {
+    var block = m.blockT > 0, wide = block ? 1.34 : 1, tall = block ? 0.88 : 1;
+    ctx.save();
+    ctx.translate(sx, sy - 23 * z + (m.bob || 0) * z);
+    if (m.faceX < 0) ctx.scale(-1, 1);
+    ctx.scale(wide, tall);
+    ctx.fillStyle = '#f4ca19'; ctx.strokeStyle = '#2c2417'; ctx.lineWidth = 2 * z;
+    ctx.beginPath(); ctx.ellipse(0, 0, 18 * z, 24 * z, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-15*z,7*z);ctx.bezierCurveTo(-28*z,13*z,-27*z,25*z,-22*z,28*z);
+    ctx.moveTo(15*z,7*z);ctx.bezierCurveTo(block?36*z:27*z,7*z,block?40*z:28*z,block?2*z:20*z,block?48*z:24*z,block?0:24*z);ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(-7*z,-8*z,7*z,9*z,0,0,Math.PI*2);ctx.ellipse(7*z,-8*z,7*z,9*z,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle = '#f4ca19';ctx.beginPath();ctx.ellipse(0,0,9*z,8*z,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle = '#1e1a14';ctx.beginPath();ctx.ellipse(0,-3*z,4*z,3*z,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
+
+  function drawBondMate() {
+    if (!W.BondMate || !W.BondMate.mate) return;
+    var m = W.BondMate.mate(), z = W.Camera.zoom, sheet, frameNo, r, pct;
+    if (!m || !m.recruited) return;
+    W.Camera.worldToScreenInto(m.wx, m.wy, _p);
+    if (_p.sx < -100 || _p.sx > W.Camera.vw + 100 || _p.sy < -100 || _p.sy > W.Camera.vh + 100) return;
+    r = 14 * z;
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';ctx.beginPath();ctx.ellipse(_p.sx,_p.sy+r*.62,r*1.05,r*.38,0,0,Math.PI*2);ctx.fill();
+    sheet = W.Art.get('mate_laopi_sheet');
+    frameNo = (m.blockT > 0 || m.actionT > 0) ? 2 : (m.moving ? 1 : 0);
+    if (sheet) drawArtFrame(sheet,frameNo,3,_p.sx,_p.sy+r*.62,70,m.faceX<0,m.bob,m.lean,m.moving?Math.sin(m.animT):0);
+    else drawBondMateFallback(m,_p.sx,_p.sy+r*.62,z);
+    if (m.actionT > 0 && m.blockT <= 0) drawMateAttackFx(m,_p.sx,_p.sy+r*.62,z);
+    pct = Math.max(0,Math.min(1,m.guardEnergy/100));
+    ctx.save();ctx.strokeStyle='rgba(35,28,18,0.7)';ctx.lineWidth=4*z;ctx.beginPath();ctx.arc(_p.sx,_p.sy+12*z,17*z,Math.PI*.12,Math.PI*.88);ctx.stroke();
+    ctx.strokeStyle=pct>=.4?'#ffe36b':'#f07d58';ctx.lineWidth=2*z;ctx.beginPath();ctx.arc(_p.sx,_p.sy+12*z,17*z,Math.PI*.12,Math.PI*(.12+.76*pct));ctx.stroke();ctx.restore();
+    if (m.blockT > 0) {
+      pct = Math.max(0,Math.min(1,m.blockT/.62));
+      ctx.save();ctx.globalAlpha=.25+.5*pct;ctx.strokeStyle='#fff1a0';ctx.lineWidth=5*z;ctx.beginPath();ctx.ellipse(_p.sx,_p.sy-13*z,40*z,34*z,-.18,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle='#f6b928';ctx.lineWidth=2*z;ctx.beginPath();ctx.ellipse(_p.sx,_p.sy-13*z,46*z,38*z,-.18,0,Math.PI*2);ctx.stroke();ctx.restore();
     }
   }
 
@@ -1587,6 +1758,9 @@ W.Render = (function() {
     drawBossHazards();
     drawBosses();
     drawMates();
+    drawBondMate();
+    drawSages();
+    drawChatter();
     W.Arrows.each(drawArrow);
     drawEquipmentBack();
     drawHonorTrail();

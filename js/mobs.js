@@ -23,7 +23,8 @@ W.Mobs = (function() {
     for (i = 0; i < W.CFG.MOB_MAX; i++) {
       pool.push({
         alive: false, type: 0, wx: 0, wy: 0,
-        vx: 0, vy: 0, hp: 0, t: 0, cd: 0, seed: 0, hurt: 0
+        vx: 0, vy: 0, hp: 0, t: 0, cd: 0, seed: 0, hurt: 0,
+        threatT: 0, attackSeq: 0
       });
     }
   }
@@ -68,7 +69,7 @@ W.Mobs = (function() {
       if (im) {
         im.alive = true; im.type = TYPE.SHADOW; im.wx = wx; im.wy = wy;
         im.vx = 0; im.vy = 0; im.hp = HP[TYPE.SHADOW];
-        im.t = 0; im.cd = 0; im.hurt = 0; im.seed = seq;
+        im.t = 0; im.cd = 0; im.hurt = 0; im.seed = seq; im.threatT = 0; im.attackSeq = 0;
       }
       return;
     }
@@ -97,6 +98,8 @@ W.Mobs = (function() {
     m.cd = 0;
     m.hurt = 0;
     m.seed = seq;
+    m.threatT = 0;
+    m.attackSeq = 0;
   }
 
   function newDir(m) {
@@ -140,6 +143,7 @@ W.Mobs = (function() {
       d = Math.sqrt(d2);
       if (m.cd > 0) m.cd -= dt;
       if (m.hurt > 0) m.hurt -= dt;
+      if (m.threatT > 0) m.threatT = Math.max(0, m.threatT - dt);
 
       spd = SPEED[m.type];
       if(W.Skins&&W.Skins.enemySpeedMultiplier)spd*=W.Skins.enemySpeedMultiplier(m.wx,m.wy);
@@ -147,13 +151,15 @@ W.Mobs = (function() {
       if (m.type === TYPE.SHADOW) {
         if (!W.Stats.isLowSan() || !W.Time.isNight()) { m.alive = false; continue; }
         if (d < 520 && !W.Stats.isDead()) {
+          m.threatT = Math.max(m.threatT, 0.35);
           inv = (d > 0.001) ? 1 / d : 0;
           m.vx = dx * inv;
           m.vy = dy * inv;
           if (d < W.CFG.WOLF_HIT_RANGE) {
             if (m.cd <= 0) {
               m.cd = W.CFG.WOLF_HIT_CD;
-              if (W.Stats.damage(W.CFG.WOLF_DMG) && W.Game && W.Game.onHurt) W.Game.onHurt();
+              m.threatT = 1; m.attackSeq++;
+              if (W.Stats.damage(W.CFG.WOLF_DMG, 'shadow-contact', m.wx, m.wy) && W.Game && W.Game.onHurt) W.Game.onHurt();
             }
             m.vx = 0; m.vy = 0;
           }
@@ -166,13 +172,15 @@ W.Mobs = (function() {
         /* 熊主動攻擊但視野短；野豬平常無害，被打了才追過來 */
         var aggro = (m.type === TYPE.BEAR) ? W.CFG.BEAR_AGGRO : W.CFG.WOLF_AGGRO;
         if (d < aggro && !W.Stats.isDead()) {
+          m.threatT = Math.max(m.threatT, 0.35);
           inv = (d > 0.001) ? 1 / d : 0;
           m.vx = dx * inv;
           m.vy = dy * inv;
           if (d < W.CFG.WOLF_HIT_RANGE + 6) {
             if (m.cd <= 0) {
               m.cd = W.CFG.WOLF_HIT_CD;
-              if (W.Stats.damage((m.type === TYPE.BEAR) ? W.CFG.BEAR_DMG : W.CFG.BOAR_DMG) && W.Game && W.Game.onHurt) W.Game.onHurt();
+              m.threatT = 1; m.attackSeq++;
+              if (W.Stats.damage((m.type === TYPE.BEAR) ? W.CFG.BEAR_DMG : W.CFG.BOAR_DMG, m.type === TYPE.BEAR ? 'bear-contact' : 'boar-contact', m.wx, m.wy) && W.Game && W.Game.onHurt) W.Game.onHurt();
             }
             m.vx = 0; m.vy = 0;
           }
@@ -197,13 +205,15 @@ W.Mobs = (function() {
           continue;
         }
         if (d < W.CFG.WOLF_AGGRO * (W.Time.isNight() ? W.CFG.NIGHT_AGGRO_MUL : 1) && !W.Stats.isDead()) {
+          m.threatT = Math.max(m.threatT, 0.35);
           inv = (d > 0.001) ? 1 / d : 0;
           m.vx = dx * inv;
           m.vy = dy * inv;
           if (d < W.CFG.WOLF_HIT_RANGE) {
             if (m.cd <= 0) {
               m.cd = W.CFG.WOLF_HIT_CD;
-              if (W.Stats.damage(W.CFG.WOLF_DMG) && W.Game && W.Game.onHurt) W.Game.onHurt();
+              m.threatT = 1; m.attackSeq++;
+              if (W.Stats.damage(W.CFG.WOLF_DMG, 'wolf-contact', m.wx, m.wy) && W.Game && W.Game.onHurt) W.Game.onHurt();
             }
             m.vx = 0;
             m.vy = 0;

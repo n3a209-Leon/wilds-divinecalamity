@@ -13,6 +13,7 @@ W.Game = (function() {
   var deadT = 0;
   var craftOpen = false;
   var travelOpen = false, equipOpen = false, journalOpen = false, rewardOpen = false;
+  var quickMenuOpen = false;
   var updateReg = null, reloadOnController = false;
 
   function resize() {
@@ -39,10 +40,11 @@ W.Game = (function() {
     elStam.style.width = (W.Stats.stamPct() * 100).toFixed(0) + '%';
     if (elSan) elSan.style.width = (W.Stats.sanPct() * 100).toFixed(0) + '%';
     if (elMates) {
-      elMates.textContent = (W.Mates && W.Mates.recruitedCount() > 0)
-        ? ('\uD83D\uDC65 \u5925\u4f34 ' + W.Mates.recruitedCount() + '/' + W.Mates.count()
-           + (W.Mates.stats().hungry ? '\uff08\u9913\u4e86 ' + W.Mates.stats().hungry + '\uff09' : ''))
-        : '';
+      var _bm = W.BondMate && W.BondMate.stats ? W.BondMate.stats() : null;
+      elMates.textContent = (_bm ? ('\uD83D\uDC36 \u8001\u76ae\u5b88\u8b77 ' + Math.round(_bm.energy) + '%') : '')
+        + (W.Mates && W.Mates.recruitedCount() > 0
+          ? ('\u3000\uD83D\uDC65 \u5925\u4f34 ' + W.Mates.recruitedCount() + '/' + W.Mates.count()
+             + (W.Mates.stats().hungry ? '\uff08\u9913\u4e86 ' + W.Mates.stats().hungry + '\uff09' : '')) : '');
     }
     if(elDivine&&W.DivineArms)updateDivineHud();
     if (W.Guide && elGuideTitle && elGuideHint) updateGuideHud();
@@ -82,10 +84,10 @@ W.Game = (function() {
 
   var _rewardSig = '';
   function updateRewardBadge() {
-    var s=W.Rewards.stats(),n=s.unseen+s.journalUnclaimed,b=document.getElementById('reward-badge');
-    if(!b)return;
+    var s=W.Rewards.stats(),n=s.unseen+s.journalUnclaimed,b=document.getElementById('reward-badge'),m=document.getElementById('menu-badge');
     var sig=String(n);if(sig===_rewardSig)return;_rewardSig=sig;
-    b.textContent=n>9?'9+':String(n);b.className=n>0?'on':'';
+    if(b){b.textContent=n>9?'9+':String(n);b.className=n>0?'on':'';}
+    if(m){m.textContent=n>9?'9+':String(n);m.className=n>0?'on':'';}
   }
 
   /* 神武 HUD：圖示 + 文字。只在狀態改變時重建 DOM，避免每次刷新都動 innerHTML。 */
@@ -528,12 +530,32 @@ W.Game = (function() {
     }
     document.getElementById('settings-list').innerHTML=html;
   }
+  function setQuickMenu(on) {
+    var menu=document.getElementById('quick-menu'),backdrop=document.getElementById('quick-menu-backdrop'),button=document.getElementById('btn-menu');
+    quickMenuOpen=!!on;
+    if(menu){menu.classList[quickMenuOpen?'add':'remove']('open');menu.setAttribute('aria-hidden',quickMenuOpen?'false':'true');}
+    if(backdrop)backdrop.classList[quickMenuOpen?'add':'remove']('open');
+    if(button){button.setAttribute('aria-expanded',quickMenuOpen?'true':'false');button.setAttribute('aria-label',quickMenuOpen?'關閉快速功能':'開啟快速功能');}
+  }
+  function closeQuickMenu(){setQuickMenu(false);}
+  function toggleQuickMenu(){setQuickMenu(!quickMenuOpen);}
+
   function openSettings(){renderSettings();document.getElementById('settings-panel').classList.add('open');}
   function closeSettings(){document.getElementById('settings-panel').classList.remove('open');}
+  function quickButtonParts(id,icon,label){
+    var b=document.getElementById(id),i,l;if(!b)return null;
+    i=b.querySelector?b.querySelector('.quick-icon'):null;l=b.querySelector?b.querySelector('.quick-label'):null;
+    if(i)i.textContent=icon;if(l)l.textContent=label;return b;
+  }
   function syncMuteButton(){
     var b=document.getElementById('btn-mute');if(!b||!W.Sfx)return;
     var silent=W.Sfx.isMuted()||Number(W.Settings.get('sfxVolume'))<=0;
-    b.textContent=silent?'🔇':'🔊';b.setAttribute('aria-pressed',silent?'true':'false');
+    quickButtonParts('btn-mute',silent?'🔇':'🔊',silent?'音效關':'音效');
+    b.setAttribute('aria-pressed',silent?'true':'false');b.setAttribute('aria-label',silent?'開啟音效':'關閉音效');
+  }
+  function syncCloudButton(signedIn){
+    var b=quickButtonParts('btn-sync',signedIn?'✅':'☁️',signedIn?'已同步':'雲端');
+    if(b)b.setAttribute('aria-label',signedIn?'雲端已登入':'登入並同步雲端');
   }
   function onSettingsClick(e){
     var b=dataButton(e,'data-setting');if(!b)return;
@@ -565,7 +587,7 @@ W.Game = (function() {
 
   function uiModalOpen(){
     var ids=['bag-panel','store-panel','craft-panel','travel-panel','equip-panel','journal-panel','reward-panel',
-      'settings-panel','cloud-conflict-panel','diag-panel','goal-card','update-panel'];
+      'settings-panel','cloud-conflict-panel','diag-panel','goal-card','update-panel','quick-menu'];
     var i,el;
     for(i=0;i<ids.length;i++){el=document.getElementById(ids[i]);if(el&&el.classList&&el.classList.contains('open'))return true;}
     return false;
@@ -889,6 +911,9 @@ W.Game = (function() {
 
   var _lastHp = -1;
   var _wasNight = false;
+  var _lastTerrain = -1;
+  var _lastHungry = 0;
+  var _chatterReady = false;
 
   function pollFeedback() {
     var hpNow = W.Stats.hp();
@@ -899,6 +924,7 @@ W.Game = (function() {
     if (nightNow && !_wasNight) {
       if (W.Sfx) W.Sfx.night();
       showToast('\uD83C\uDF19 \u5165\u591c\u4e86\u2026\u591c\u5149\u8611\u83c7\u958b\u59cb\u751f\u9577');
+      if (W.Chatter) W.Chatter.speak('night');
     }
     _wasNight = nightNow;
   }
@@ -1074,9 +1100,26 @@ W.Game = (function() {
       if (W.Sites) W.Sites.updateNear(W.Player.wx, W.Player.wy);
       if (W.Bosses) W.Bosses.update(simDt);
       if (W.Mates) W.Mates.update(simDt);
+      if (W.BondMate) W.BondMate.update(simDt);
+      if (W.Chatter && W.Mates) {
+        var _hn = W.Mates.stats().hungry;
+        if (_hn > _lastHungry && _hn > 0) W.Chatter.speak('hungry');
+        _lastHungry = _hn;
+      }
       if (W.DivineArms) W.DivineArms.update(simDt);
       if (W.Calamity) W.Calamity.update(simDt);
       if (W.Guide) W.Guide.update(simDt);
+      if (W.Chatter) {
+        W.Chatter.update(simDt);
+        /* 走進不同地形就吐槽一句（用腳下地形值變化偵測） */
+        var _terr = W.Player.terrain();
+        if (_terr !== _lastTerrain) {
+          _lastTerrain = _terr;
+          if (_chatterReady) W.Chatter.speak('biome');
+          _chatterReady = true;
+        }
+      }
+      if (W.Sages) W.Sages.update(simDt);
       if (W.Travel) W.Travel.update(simDt);
       if (W.Journal) W.Journal.update(simDt);
       if (W.Skins) W.Skins.update(simDt);
@@ -1108,10 +1151,11 @@ W.Game = (function() {
     var ar = W.Art.stats();
     var ss = W.Sites ? W.Sites.stats() : { near: 0, looted: 0 };
     var mt = W.Mates ? W.Mates.stats() : { total: 0, recruited: 0, hungry: 0 };
+    var bm = W.BondMate ? W.BondMate.stats() : { energy: 0, mood: 'none', daysTogether: 0, blocks: 0, rescues: 0 };
     var bs2 = W.Bosses ? W.Bosses.stats() : { alive: 0, defeated: 0 };
     var rw = W.Rewards ? W.Rewards.stats() : { honor:0, rank:'', skins:0, totalSkins:0, unseen:0 };
     return [
-      '=== WILDS 診斷 (Phase 19) ===',
+      '=== WILDS 診斷 (Phase 20) ===',
       '',
       'FPS          : ' + Math.round(fps),
       'DPR          : ' + Math.min(window.devicePixelRatio || 1, W.Settings.dprCap()),
@@ -1186,6 +1230,8 @@ W.Game = (function() {
       '\u5132\u7269\u7bb1     : ' + W.Store.total() + ' / ' + W.CFG.STORE_CAP,
       '\u9670\u5f71\u6578\u91cf     : ' + (ms.shadows || 0),
       '\u5925\u4f34         : ' + mt.recruited + ' / ' + mt.total + '\uff08\u9913 ' + mt.hungry + '\uff09',
+      '\u8001\u76ae\u5b88\u8b77     : ' + Math.round(bm.energy) + '%\uff08' + bm.mood + '\uff09\u3001\u540c\u884c ' + bm.daysTogether + ' \u5929',
+      '\u8001\u76ae\u8a18\u61b6     : \u64cb\u50b7 ' + bm.blocks + '\u3001\u6551\u63f4 ' + bm.rescues + '\u3001\u9996\u9818 ' + (bm.bossWins || 0) + '\u3001\u707d\u798d ' + (bm.calamityWins || 0),
       '\u9b54\u738b         : \u5b58\u6d3b ' + bs2.alive + '\u3001\u5df2\u64ca\u6557 ' + bs2.defeated,
       '荒野榮譽     : ' + rw.honor + '（' + rw.rank + '）',
       '傳說 Skin   : ' + rw.skins + ' / ' + rw.totalSkins + '（未讀 ' + rw.unseen + '）',
@@ -1241,7 +1287,7 @@ W.Game = (function() {
     ['Arrows', 'arrows.js'], ['Minimap', 'minimap.js'], ['Art', 'art.js'],
     ['Cloud', 'cloud.js'], ['Sfx', 'sfx.js'], ['Sites', 'sites.js'], ['Store', 'store.js'],
     ['Mates', 'companions.js'], ['DivineArms', 'divine-arms.js'],
-    ['Bosses', 'bosses.js'], ['Calamity', 'calamity.js'], ['Guide', 'guide.js'], ['Travel', 'travel.js'],
+    ['Bosses', 'bosses.js'], ['Chatter', 'chatter.js'], ['BondMate', 'bondmate.js'], ['Sages', 'sages.js'], ['Calamity', 'calamity.js'], ['Guide', 'guide.js'], ['Travel', 'travel.js'],
     ['Journal', 'journal.js'], ['Skins', 'skins.js'], ['Rewards', 'rewards.js']
   ];
 
@@ -1317,6 +1363,7 @@ W.Game = (function() {
     on('btn-a', 'pointerdown', function(e) { e.preventDefault(); doAction(); });
     on('btn-roll', 'pointerdown', function(e) { e.preventDefault(); doRoll(); });
     window.addEventListener('keydown',function(e){
+      if(e.key==='Escape'&&quickMenuOpen){e.preventDefault();closeQuickMenu();return;}
       if((e.key===' '||e.code==='Space')&&!e.repeat){e.preventDefault();doRoll();}
     });
 
@@ -1325,12 +1372,15 @@ W.Game = (function() {
       showToast(W.Guide.cycle());
       updateGuideHud();
     });
-    on('btn-travel', 'click', openTravel);
-    on('btn-equip', 'click', openEquipment);
-    on('btn-skin', 'click', nextChar);
-    on('btn-journal', 'click', openJournal);
-    on('btn-rewards', 'click', openRewards);
-    on('btn-settings', 'click', openSettings);
+    on('btn-menu', 'click', toggleQuickMenu);
+    on('quick-menu-close', 'click', closeQuickMenu);
+    on('quick-menu-backdrop', 'click', closeQuickMenu);
+    on('btn-travel', 'click', function(){closeQuickMenu();openTravel();});
+    on('btn-equip', 'click', function(){closeQuickMenu();openEquipment();});
+    on('btn-skin', 'click', function(){closeQuickMenu();nextChar();});
+    on('btn-journal', 'click', function(){closeQuickMenu();openJournal();});
+    on('btn-rewards', 'click', function(){closeQuickMenu();openRewards();});
+    on('btn-settings', 'click', function(){closeQuickMenu();openSettings();});
     on('travel-close', 'click', closeTravel);
     on('equip-close', 'click', closeEquipment);
     on('journal-close', 'click', closeJournal);
@@ -1398,6 +1448,7 @@ W.Game = (function() {
 
     safe('\u96f2\u7aef\u6309\u9215', function() {
     on('btn-sync', 'click', function() {
+      closeQuickMenu();
       if (!W.FIREBASE_CONFIG) {
         showToast('\u96f2\u7aef\u672a\u8a2d\u5b9a\uff08\u9700\u586b firebase-config\uff09');
         return;
@@ -1416,6 +1467,7 @@ W.Game = (function() {
         var b = document.getElementById('btn-sync');
         if (!b) return;
         if (signedIn) { b.classList.add('on'); } else { b.classList.remove('on'); }
+        syncCloudButton(signedIn);
         cloudLabel();
       });
     }
@@ -1425,6 +1477,7 @@ W.Game = (function() {
       var m = !W.Sfx.isMuted();
       W.Sfx.setMuted(m);
       syncMuteButton();
+      closeQuickMenu();
     });
 
     on('craft-close', 'click', closeCraft);
@@ -1525,6 +1578,7 @@ W.Game = (function() {
     });
 
     on('btn-diag', 'click', function() {
+      closeQuickMenu();
       document.getElementById('diag-body').textContent = diagText();
       document.getElementById('diag-panel').classList.add('open');
     });
@@ -1541,6 +1595,8 @@ W.Game = (function() {
 
     safe('\u5925\u4f34\u521d\u59cb\u5316', function() {
       W.Mates.init();
+      if (W.BondMate) W.BondMate.init();
+      if (W.Sages) W.Sages.init();
       W.Bosses.init();
     });
 
@@ -1551,7 +1607,38 @@ W.Game = (function() {
     W.Game.onMateHit = function(m, hit) {
       W.Render.dmgText(hit.wx || m.wx, (hit.wy || m.wy) - 10, '-' + hit.dmg);
     };
+    W.Game.onBondHit = function(m, hit) {
+      W.Render.dmgText(hit.wx || m.wx, (hit.wy || m.wy) - 10, '-' + hit.dmg);
+    };
+    W.Game.onBondBlock = function() {
+      showToast('\uD83D\uDC36 \u8001\u76ae\u4f38\u9577\u8eab\u9ad4\u64cb\u4f4f\u4e86\u653b\u64ca\uff01');
+      if(W.Render){if(W.Render.shake)W.Render.shake(6,0.22);if(W.Render.flash)W.Render.flash('rgba(255,220,90,0.18)',0.2);}
+      if(W.Settings)W.Settings.vibrate([18,25,18]);
+      if(W.Sfx)W.Sfx.hit();
+    };
+    W.Game.onBondRescue = function(food) {
+      showToast('\uD83D\uDC36 \u8001\u76ae\u62ff\u51fa' + (food || '\u98df\u7269') + '\u628a\u4f60\u6551\u4e86\u56de\u4f86\uff01');
+      if(W.Render){W.Render.flash('rgba(255,220,95,0.42)',0.42);if(W.Render.shake)W.Render.shake(8,0.32);}
+      if(W.Sfx)W.Sfx.kill();
+      W.Save.save();
+    };
+    W.Game.onBondMemory = function() {
+      /* \u7b2c\u4e00\u6b21\u904e\u591c\u7b49\u8a18\u61b6\u4e0d\u4e00\u5b9a\u6709\u5176\u4ed6\u5b58\u6a94\u4e8b\u4ef6\uff0c\u7576\u5834\u56fa\u5316\u3002 */
+      W.Save.save();
+    };
+    W.Game.onBondMemory = function(label) {
+      showToast('\uD83D\uDC36 \u8001\u76ae\u8a18\u5f97\uff1a' + label);
+      W.Save.save();
+    };
     W.Game.onBossDown = function(b) {
+      if(W.BondMate)W.BondMate.noteBossDown(false);
+      if (W.Chatter && W.Mates && !W.BondMate) {
+        var _mi, _mm;
+        for (_mi = 0; _mi < W.Mates.count(); _mi++) {
+          _mm = W.Mates.at(_mi);
+          if (_mm.recruited) { W.Chatter.speakMate(_mm, 'kill'); break; }
+        }
+      }
       showToast(b.def.reward
         ? ('🏆 擊敗 ' + b.def.name + (b.rewardUnlocked ? '！獲得神武' : '！神武已持有'))
         : ('🏆 擊敗 ' + b.def.name + '！牢籠開了'));
@@ -1560,17 +1647,20 @@ W.Game = (function() {
       W.Save.save();
     };
     W.Game.onBossHitPlayer = function() {
+      if(W.BondMate)W.BondMate.noteEvent('hurt');
       if(W.Render&&W.Render.shake)W.Render.shake(7,0.22);
       if(W.Settings)W.Settings.vibrate(35);
       if (W.Sfx) W.Sfx.hurt();
     };
     W.Game.onPerfectDodge = function(info) {
+      if(W.BondMate)W.BondMate.noteEvent('dodge');
       showToast('✨ 完美閃避！體力 +12，下一擊傷害 +18');
       if(W.Render){if(W.Render.slowMotion)W.Render.slowMotion(0.32,0.32);if(W.Render.dodgeFx)W.Render.dodgeFx(info.wx,info.wy,-W.Player.faceX,-W.Player.faceY);}
       if(W.Sfx&&W.Sfx.perfectDodge)W.Sfx.perfectDodge();
       if(W.Settings)W.Settings.vibrate([18,30,18]);
     };
     W.Game.onBossPhase = function(b,phase) {
+      if(W.BondMate)W.BondMate.noteEvent('danger');
       showToast('⚠️ '+b.def.name+' 進入第 '+phase+' 階段，攻擊加速！');
       if(W.Render&&W.Render.phaseFx)W.Render.phaseFx(b.wx,b.wy);
       if(W.Render&&W.Render.flash)W.Render.flash('rgba(135,70,180,0.25)',0.24);
@@ -1625,6 +1715,7 @@ W.Game = (function() {
       showToast(reason||'召喚已取消');_btnMode='';
     };
     W.Game.onCalamitySummoned = function(b) {
+      if(W.BondMate)W.BondMate.noteEvent('danger');
       var cs=W.Calamity&&W.Calamity.stats?W.Calamity.stats():null;
       if(cs&&cs.activeAscended)showToast('🔥 飛升災禍 Lv.'+(cs.ascensionCycle+1)+'：'+b.name+' 強化降臨');
       else showToast(b&&b.id==='titan'?'⚠️ 骸骨泰坦降臨！躲避骨刺與震波':'⚠️ 萬眼巨鯤降臨！避開深淵與隕石');
@@ -1634,12 +1725,14 @@ W.Game = (function() {
       W.Save.save();
     };
     W.Game.onCalamityDown = function(b) {
+      if(W.BondMate)W.BondMate.noteBossDown(true);
       showToast(b&&b.id==='titan'?'🏆 擊敗骸骨泰坦！兩大災禍已平息':'🏆 擊敗萬眼巨鯤！祭壇出現更強大的氣息');
       W.Render.flash('rgba(175,105,225,0.65)');
       if (W.Sfx) W.Sfx.kill();
       W.Save.save();
     };
     W.Game.onCalamityPhase = function(b,phase) {
+      if(W.BondMate)W.BondMate.noteEvent('danger');
       showToast('☄️ '+b.name+' 進入 Phase '+phase+'，新的災禍攻勢展開');
       if(W.Render&&W.Render.phaseFx)W.Render.phaseFx(b.wx,b.wy);
       if(W.Render&&W.Render.flash)W.Render.flash('rgba(155,70,215,0.32)',0.28);
@@ -1694,6 +1787,7 @@ W.Game = (function() {
       return W.Save.load();
     }).then(function(loaded) {
       if (!loaded) W.Player.spawn();
+      if (W.BondMate) { W.BondMate.spawnNearPlayer(); W.BondMate.checkSkinUnlock(); }
       W.Camera.snapTo(W.Player.wx, W.Player.wy);
       if (W.Bosses) W.Bosses.init();
       if (W.Guide) W.Guide.init();
@@ -1717,6 +1811,7 @@ W.Game = (function() {
   }
 
   function onHurt() {
+    if(W.BondMate)W.BondMate.noteEvent('hurt');
     if(W.Settings)W.Settings.vibrate(30);
     if(W.Render&&W.Render.shake)W.Render.shake(5,0.18);
     if (W.Stats.hpPct() < 0.3) showToast('\u751f\u547d\u5371\u96aa\uff01\u5feb\u9003\u6216\u9032\u98df');

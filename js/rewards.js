@@ -4,7 +4,7 @@ window.W = window.W || {};
    榮譽值由既有進度推導，不另造可遺失的貨幣；seen 只保存未讀提示。 */
 W.Rewards=(function(){
   var seen={};
-  var SKIN_IDS=['abyss','death','star','phoenix','end'];
+  var SKIN_IDS=['abyss','death','star','phoenix','end','found_family'];
   var RANKS=[
     {at:0,name:'荒野旅人',reward:'荒野稱號'},
     {at:60,name:'生存專家',reward:'旅人金色足跡'},
@@ -21,6 +21,7 @@ W.Rewards=(function(){
     if(allRegions()&&W.DivineArms&&W.DivineArms.stats().owned>=5)changed=W.Skins.unlock('star',!!silent)||changed;
     if((cs.ascensionCycle||0)>=1)changed=W.Skins.unlock('phoenix',!!silent)||changed;
     if((cs.ascensionCycle||0)>=3)changed=W.Skins.unlock('end',!!silent)||changed;
+    if(W.BondMate&&W.BondMate.skinEligible&&W.BondMate.skinEligible())changed=W.Skins.unlock('found_family',!!silent)||changed;
     return changed;
   }
   function allRegions(){if(!W.Bosses||!W.Bosses.isDefeated)return false;var ids=['hydra','dragon','colossus','eagle','lava'];for(var i=0;i<ids.length;i++)if(!W.Bosses.isDefeated('region:'+ids[i]))return false;return true;}

@@ -127,7 +127,7 @@ W.Bosses = (function() {
     var sd = Math.sqrt(sx * sx + sy * sy) || 0.001;
     if (d < TERRITORY && sd < TERRITORY * 1.4 && !W.Stats.isDead()) {
       if (d > ATK_RANGE) moveToward(b, dx, dy, d, SPEED, dt);
-      else if (b.atkT <= 0) { b.atkT = ATK_CD; b.atkFx = 0.45; damagePlayer(b.def.dmg, 'boss'); }
+      else if (b.atkT <= 0) { b.atkT = ATK_CD; b.atkFx = 0.45; damagePlayer(b.def.dmg, 'boss', b.wx, b.wy); }
     } else if (sd > 8) moveToward(b, sx, sy, sd, SPEED * 0.8, dt);
   }
 
@@ -155,7 +155,7 @@ W.Bosses = (function() {
     if (d < 72 && b.atkT <= 0) {
       b.atkT = b.phase === 3 ? 0.9 : 1.25;
       b.atkFx = 0.45;
-      damagePlayer(b.def.dmg + (b.phase - 1) * 4, 'hydra-bite');
+      damagePlayer(b.def.dmg + (b.phase - 1) * 4, 'hydra-bite', b.wx, b.wy);
     }
   }
 
@@ -180,7 +180,7 @@ W.Bosses = (function() {
     if (d < 82 && b.atkT <= 0) {
       b.atkT = b.phase === 3 ? 0.95 : 1.3;
       b.atkFx = 0.45;
-      damagePlayer(b.def.dmg + (b.phase - 1) * 3, 'dragon-dive');
+      damagePlayer(b.def.dmg + (b.phase - 1) * 3, 'dragon-dive', b.wx, b.wy);
     }
   }
 
@@ -207,7 +207,7 @@ W.Bosses = (function() {
     if (d < 108 && b.atkT <= 0) {
       b.atkT = b.phase === 3 ? 1.0 : 1.4;
       b.atkFx = 0.5;
-      damagePlayer(b.def.dmg + (b.phase - 1) * 4, 'colossus-fist');
+      damagePlayer(b.def.dmg + (b.phase - 1) * 4, 'colossus-fist', b.wx, b.wy);
       if (b.phase >= 2) spawnPool(b.wx, b.wy, 'rot', 72, 1.2, 8, 0.55);
     }
   }
@@ -232,7 +232,7 @@ W.Bosses = (function() {
     if (d < 74 && b.atkT <= 0) {
       b.atkT = b.phase === 3 ? 0.72 : 1.0;
       b.atkFx = 0.4;
-      damagePlayer(b.def.dmg + (b.phase - 1) * 3, 'eagle-dive');
+      damagePlayer(b.def.dmg + (b.phase - 1) * 3, 'eagle-dive', b.wx, b.wy);
     }
   }
 
@@ -261,7 +261,7 @@ W.Bosses = (function() {
     if (d < 116 && b.atkT <= 0) {
       b.atkT = b.phase === 3 ? 0.95 : 1.35;
       b.atkFx = 0.5;
-      if (!inLavaSafeZone()) damagePlayer(b.def.dmg + (b.phase - 1) * 5, 'lava-fist');
+      if (!inLavaSafeZone()) damagePlayer(b.def.dmg + (b.phase - 1) * 5, 'lava-fist', b.wx, b.wy);
       spawnPillar(W.Player.wx, W.Player.wy, 0.65, 46, 18 + b.phase * 3);
     }
   }
@@ -383,7 +383,7 @@ W.Bosses = (function() {
       dx = W.Player.wx - p.wx; dy = W.Player.wy - p.wy;
       if (dx * dx + dy * dy < 24 * 24) {
         p.on = false;
-        if (p.kind !== 'lava' || !inLavaSafeZone()) damagePlayer(p.dmg, p.kind + '-projectile');
+        if (p.kind !== 'lava' || !inLavaSafeZone()) damagePlayer(p.dmg, p.kind + '-projectile', p.wx, p.wy);
       }
     }
     for (i = 0; i < pools.length; i++) {
@@ -392,7 +392,7 @@ W.Bosses = (function() {
       dx = W.Player.wx - p.wx; dy = W.Player.wy - p.wy;
       if (dx * dx + dy * dy < p.r * p.r && p.tick <= 0) {
         p.tick = p.tickEvery;
-        if (p.kind !== 'lava' || !inLavaSafeZone()) damagePlayer(p.dmg, p.kind + '-zone');
+        if (p.kind !== 'lava' || !inLavaSafeZone()) damagePlayer(p.dmg, p.kind + '-zone', p.wx, p.wy);
       }
     }
     for (i = 0; i < pillars.length; i++) {
@@ -400,17 +400,14 @@ W.Bosses = (function() {
       if (p.delay > 0) { p.delay -= dt; continue; }
       if (!p.hit) {
         p.hit = true; dx = W.Player.wx - p.wx; dy = W.Player.wy - p.wy;
-        if (dx * dx + dy * dy < p.r * p.r && !inLavaSafeZone()) damagePlayer(p.dmg, 'fire-pillar');
+        if (dx * dx + dy * dy < p.r * p.r && !inLavaSafeZone()) damagePlayer(p.dmg, 'fire-pillar', p.wx, p.wy);
       }
       p.t -= dt; if (p.t <= 0) p.on = false;
     }
   }
 
-  function damagePlayer(amount, source) {
-    var dmg = W.DivineArms ? W.DivineArms.absorbDamage(amount, source) : amount;
-    if (dmg > 0) {
-      if (W.Stats.damage(dmg) && W.Game && W.Game.onBossHitPlayer) W.Game.onBossHitPlayer();
-    }
+  function damagePlayer(amount, source, sourceWx, sourceWy) {
+    if (W.Stats.damage(amount, source, sourceWx, sourceWy) && W.Game && W.Game.onBossHitPlayer) W.Game.onBossHitPlayer();
   }
 
   var _res = { name: '', dmg: 0, killed: false, wx: 0, wy: 0, type: -1, boss: true };

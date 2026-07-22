@@ -66,17 +66,22 @@ W.Stats = (function() {
     if (san < 0) san = 0;
   }
 
-  function damage(n) {
+  /* 所有敵人傷害共用同一入口；source 與來源座標讓老皮辨識
+     投射物、近戰，以及不該浪費守護冷卻的持續地板傷害。 */
+  function damage(n, source, sourceWx, sourceWy) {
     if (dead) return false;
     if (invT > 0) return false;
     if (W.Player && W.Player.isRolling && W.Player.isRolling()) {
       if (W.Player.evadeDamage) W.Player.evadeDamage(n);
       return false;
     }
-    /* 一般生物原本會直接呼叫 Stats.damage；在核心入口再檢查一次，
-       讓神盾與神翼不只對 Boss／災禍攻擊生效。Boss 已先吸收成功時不會走到此處。 */
+    /* 所有敵人傷害只在這裡依序結算：翻滾 → 神武 → 老皮 → Skin → 扣血。 */
     if (W.DivineArms && W.DivineArms.absorbDamage) {
-      n = W.DivineArms.absorbDamage(n, 'world-attack');
+      n = W.DivineArms.absorbDamage(n, source || 'world-attack');
+      if (n <= 0) return false;
+    }
+    if (W.BondMate && W.BondMate.absorbDamage) {
+      n = W.BondMate.absorbDamage(n, source || 'world-attack', sourceWx, sourceWy);
       if (n <= 0) return false;
     }
     if(W.Skins&&W.Skins.enemyDamageMultiplier)n*=W.Skins.enemyDamageMultiplier();
@@ -90,6 +95,8 @@ W.Stats = (function() {
   function handleLethal() {
     var pct=W.Skins&&W.Skins.tryPhoenixRevive?W.Skins.tryPhoenixRevive():0;
     if(pct>0){hp=hpMax*pct;food=Math.max(food,foodMax*.25);stam=stamMax;dead=false;hurtT=0;invT=1.6;return true;}
+    pct=W.BondMate&&W.BondMate.tryRescue?W.BondMate.tryRescue():0;
+    if(pct>0){hp=hpMax*pct;food=Math.max(food,foodMax*.2);stam=Math.max(stam,stamMax*.35);dead=false;hurtT=0;invT=1.2;if(W.Game&&W.Game.onBondRescue)W.Game.onBondRescue(W.BondMate.lastRescueFood());return true;}
     hp=0;dead=true;return false;
   }
 
