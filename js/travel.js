@@ -107,8 +107,8 @@ W.Travel = (function() {
       var i, m, hostile;
       for (i = 0; i < W.Mobs.count(); i++) {
         m = W.Mobs.at(i); if (!m || !m.alive) continue;
-        hostile = m.type === W.Mobs.TYPE.WOLF || m.type === W.Mobs.TYPE.SHADOW ||
-          m.type === W.Mobs.TYPE.BEAR || (m.type === W.Mobs.TYPE.BOAR && m.hurt > 0);
+        hostile = W.Mobs.isHostile ? W.Mobs.isHostile(m) :
+          (m.type === W.Mobs.TYPE.WOLF || m.type === W.Mobs.TYPE.SHADOW || m.type === W.Mobs.TYPE.BEAR);
         if (hostile && nearObject(m, 190)) return '附近仍有敵人，無法快速移動';
       }
     }

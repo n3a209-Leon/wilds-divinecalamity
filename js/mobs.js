@@ -5,11 +5,13 @@ window.W = window.W || {};
 W.Mobs = (function() {
   var T = W.TERRAIN;
 
-  var TYPE = { DEER: 0, RABBIT: 1, WOLF: 2, SHADOW: 3, BOAR: 4, BEAR: 5, CROW: 6 };
-  var NAMES = ['\u9e7f', '\u5154\u5b50', '\u72fc', '\u9670\u5f71', '\u91ce\u8c6c', '\u718a', '\u70cf\u9d09'];
-  var HP    = [26, 12, 34, 20, 46, 92, 8];
-  var SPEED = [130, 175, 168, 150, 152, 138, 190];
-  var RAD   = [12, 8, 12, 12, 13, 18, 7];
+  var TYPE = { DEER: 0, RABBIT: 1, WOLF: 2, SHADOW: 3, BOAR: 4, BEAR: 5, CROW: 6,
+    FOX: 7, GOAT: 8, BADGER: 9 };
+  var NAMES = ['\u9e7f', '\u5154\u5b50', '\u72fc', '\u9670\u5f71', '\u91ce\u8c6c', '\u718a', '\u70cf\u9d09',
+    '\u72d0\u72f8', '\u5c71\u7f8a', '\u5de8\u737e'];
+  var HP    = [26, 12, 34, 20, 46, 92, 8, 30, 58, 70];
+  var SPEED = [130, 175, 168, 150, 152, 138, 190, 182, 160, 150];
+  var RAD   = [12, 8, 12, 12, 13, 18, 7, 10, 14, 15];
 
   var pool = [];
   var poolN = 0;
@@ -24,7 +26,8 @@ W.Mobs = (function() {
       pool.push({
         alive: false, type: 0, wx: 0, wy: 0,
         vx: 0, vy: 0, hp: 0, t: 0, cd: 0, seed: 0, hurt: 0,
-        threatT: 0, attackSeq: 0
+        threatT: 0, attackSeq: 0, challengeKey: '',
+        aggroT: 0, windupT: 0, chargeT: 0, chargeHit: false
       });
     }
   }
@@ -69,7 +72,8 @@ W.Mobs = (function() {
       if (im) {
         im.alive = true; im.type = TYPE.SHADOW; im.wx = wx; im.wy = wy;
         im.vx = 0; im.vy = 0; im.hp = HP[TYPE.SHADOW];
-        im.t = 0; im.cd = 0; im.hurt = 0; im.seed = seq; im.threatT = 0; im.attackSeq = 0;
+        im.t = 0; im.cd = 0; im.hurt = 0; im.seed = seq; im.threatT = 0; im.attackSeq = 0; im.challengeKey = '';
+        im.aggroT = 0; im.windupT = 0; im.chargeT = 0; im.chargeHit = false;
       }
       return;
     }
@@ -78,9 +82,19 @@ W.Mobs = (function() {
     var wolfCut = W.Time.isNight() ? W.CFG.NIGHT_WOLF_CHANCE : 0;
     var noWolf = (W.Time.dayNo() <= 1);
     var type;
-    if (terr === T.FOREST)      type = (!noWolf && h3 < Math.max(0.05, wolfCut)) ? TYPE.WOLF : ((h3 < 0.30) ? TYPE.DEER : ((h3 < 0.50) ? TYPE.BOAR : ((h3 < 0.58) ? TYPE.CROW : ((h3 < 0.62 && !noWolf) ? TYPE.BEAR : TYPE.RABBIT))));
-    else if (terr === T.GRASS)  type = (!noWolf && h3 < Math.max(0.02, wolfCut * 0.6)) ? TYPE.WOLF : ((h3 < 0.34) ? TYPE.DEER : ((h3 < 0.48) ? TYPE.BOAR : ((h3 < 0.60) ? TYPE.CROW : TYPE.RABBIT)));
-    else if (terr === T.ROCK)   type = (!noWolf && h3 < (W.Time.isNight() ? 0.20 : 0.06)) ? TYPE.WOLF : ((h3 < 0.30) ? TYPE.CROW : ((h3 < 0.36 && !noWolf) ? TYPE.BEAR : TYPE.RABBIT));
+    if (terr === T.FOREST) {
+      type = (!noWolf && h3 < Math.max(0.05, wolfCut)) ? TYPE.WOLF
+        : (h3 < 0.25 ? TYPE.DEER : (h3 < 0.41 ? TYPE.BOAR : (h3 < 0.50 ? TYPE.FOX
+        : (h3 < 0.57 ? TYPE.CROW : (h3 < 0.62 && !noWolf ? TYPE.BEAR : (h3 < 0.72 ? TYPE.BADGER : TYPE.RABBIT))))));
+    } else if (terr === T.GRASS) {
+      type = (!noWolf && h3 < Math.max(0.02, wolfCut * 0.6)) ? TYPE.WOLF
+        : (h3 < 0.30 ? TYPE.DEER : (h3 < 0.43 ? TYPE.BOAR : (h3 < 0.53 ? TYPE.FOX
+        : (h3 < 0.63 ? TYPE.CROW : (h3 < 0.68 ? TYPE.GOAT : TYPE.RABBIT)))));
+    } else if (terr === T.ROCK) {
+      type = (!noWolf && h3 < (W.Time.isNight() ? 0.20 : 0.06)) ? TYPE.WOLF
+        : (h3 < 0.26 ? TYPE.CROW : (h3 < 0.43 ? TYPE.GOAT : (h3 < 0.49 && !noWolf ? TYPE.BEAR
+        : (h3 < 0.61 ? TYPE.BADGER : TYPE.RABBIT))));
+    }
     else return;
 
     var i, m = null;
@@ -100,6 +114,36 @@ W.Mobs = (function() {
     m.seed = seq;
     m.threatT = 0;
     m.attackSeq = 0;
+    m.challengeKey = '';
+    m.aggroT = 0;
+    m.windupT = 0;
+    m.chargeT = 0;
+    m.chargeHit = false;
+  }
+
+  /* 哇塞秘境使用現有固定物件池生成可追蹤的戰鬥波次，不另外配置敵人陣列。 */
+  function spawnChallenge(key, wx, wy, type, strong) {
+    ensurePool();
+    var i, m = null, t = Math.max(0, Math.min(TYPE.BADGER, type | 0));
+    for (i = 0; i < pool.length; i++) if (!pool[i].alive) { m = pool[i]; break; }
+    if (!m || !walkable(wx, wy)) return false;
+    m.alive = true; m.type = t; m.wx = wx; m.wy = wy; m.vx = 0; m.vy = 0;
+    m.hp = Math.round(HP[t] * (strong ? 1.35 : 1));
+    m.t = 0; m.cd = 0.35; m.hurt = 3; m.seed = seq++;
+    m.threatT = 2; m.attackSeq = 0; m.challengeKey = String(key || 'realm');
+    m.aggroT = strong ? 6 : 3; m.windupT = 0; m.chargeT = 0; m.chargeHit = false;
+    return true;
+  }
+
+  function challengeAlive(key) {
+    var i, n = 0, k = String(key || 'realm');
+    for (i = 0; i < pool.length; i++) if (pool[i].alive && pool[i].challengeKey === k) n++;
+    return n;
+  }
+
+  function clearChallenge(key) {
+    var i, k = String(key || 'realm');
+    for (i = 0; i < pool.length; i++) if (pool[i].alive && pool[i].challengeKey === k) pool[i].alive = false;
   }
 
   function newDir(m) {
@@ -143,6 +187,7 @@ W.Mobs = (function() {
       d = Math.sqrt(d2);
       if (m.cd > 0) m.cd -= dt;
       if (m.hurt > 0) m.hurt -= dt;
+      if (m.aggroT > 0) m.aggroT = Math.max(0, m.aggroT - dt);
       if (m.threatT > 0) m.threatT = Math.max(0, m.threatT - dt);
 
       spd = SPEED[m.type];
@@ -168,19 +213,88 @@ W.Mobs = (function() {
         continue;
       }
 
-      if (m.type === TYPE.BEAR || (m.type === TYPE.BOAR && m.hurt > 0)) {
-        /* 熊主動攻擊但視野短；野豬平常無害，被打了才追過來 */
-        var aggro = (m.type === TYPE.BEAR) ? W.CFG.BEAR_AGGRO : W.CFG.WOLF_AGGRO;
+      if (m.type === TYPE.GOAT) {
+        /* 山羊是領域型生物：先鎖定方向預警，再直線衝撞；衝刺期間不會追蹤轉彎。 */
+        if (m.windupT > 0) {
+          m.windupT = Math.max(0, m.windupT - dt);
+          m.threatT = Math.max(m.threatT, 0.45);
+          if (m.windupT <= 0) m.chargeT = W.CFG.GOAT_CHARGE_TIME;
+          continue;
+        }
+        if (m.chargeT > 0) {
+          m.chargeT = Math.max(0, m.chargeT - dt);
+          m.threatT = Math.max(m.threatT, 0.45);
+          if (!m.chargeHit && d < W.CFG.WOLF_HIT_RANGE + 10) {
+            m.chargeHit = true; m.attackSeq++;
+            if (W.Stats.damage(W.CFG.GOAT_DMG, 'goat-charge', m.wx, m.wy) && W.Game && W.Game.onHurt) W.Game.onHurt();
+          }
+          moveMob(m, dt, spd * 1.9);
+          if (m.chargeT <= 0) { m.vx = 0; m.vy = 0; }
+          continue;
+        }
+        if ((d < W.CFG.GOAT_AGGRO || m.aggroT > 0) && !W.Stats.isDead() && m.cd <= 0) {
+          inv = (d > 0.001) ? 1 / d : 0;
+          m.vx = dx * inv; m.vy = dy * inv;
+          m.windupT = 0.44; m.cd = 2.8; m.chargeHit = false;
+          m.threatT = Math.max(m.threatT, 0.8);
+          continue;
+        }
+        m.t -= dt;
+        if (m.t <= 0) newDir(m);
+        moveMob(m, dt, spd * 0.36);
+        continue;
+      }
+
+      if (m.type === TYPE.FOX) {
+        /* 狐狸白天保持距離；夜裡或受擊後會以切線繞行，再短距離撲擊。 */
+        fire = W.Build.nearType(m.wx, m.wy, W.Build.TYPE.FIRE, W.CFG.FIRE_FEAR);
+        if (fire) {
+          fdx = m.wx - fire.wx; fdy = m.wy - fire.wy; fd = Math.sqrt(fdx * fdx + fdy * fdy);
+          if (fd > 0.001) { m.vx = fdx / fd; m.vy = fdy / fd; }
+          moveMob(m, dt, spd); continue;
+        }
+        var foxHostile = m.aggroT > 0 || (W.Time.isNight() && d < W.CFG.FOX_AGGRO);
+        if (foxHostile && !W.Stats.isDead()) {
+          m.threatT = Math.max(m.threatT, 0.35);
+          inv = (d > 0.001) ? 1 / d : 0;
+          if (m.cd > W.CFG.FOX_HIT_CD * 0.55) {
+            m.vx = -dx * inv; m.vy = -dy * inv;
+          } else {
+            var side = (m.attackSeq % 2 === 0) ? 1 : -1;
+            m.vx = dx * inv * 0.78 - dy * inv * side * 0.62;
+            m.vy = dy * inv * 0.78 + dx * inv * side * 0.62;
+            fd = Math.sqrt(m.vx * m.vx + m.vy * m.vy) || 1;
+            m.vx /= fd; m.vy /= fd;
+            if (d < W.CFG.FOX_HIT_RANGE && m.cd <= 0) {
+              m.cd = W.CFG.FOX_HIT_CD; m.threatT = 1; m.attackSeq++;
+              if (W.Stats.damage(W.CFG.FOX_DMG, 'fox-pounce', m.wx, m.wy) && W.Game && W.Game.onHurt) W.Game.onHurt();
+            }
+          }
+          moveMob(m, dt, spd);
+        } else {
+          if (d < W.CFG.FLEE_RANGE * 0.75) {
+            inv = (d > 0.001) ? 1 / d : 0; m.vx = -dx * inv; m.vy = -dy * inv;
+          } else { m.t -= dt; if (m.t <= 0) newDir(m); spd *= 0.45; }
+          moveMob(m, dt, spd);
+        }
+        continue;
+      }
+
+      if (m.type === TYPE.BEAR || ((m.type === TYPE.BOAR || m.type === TYPE.BADGER) && (m.aggroT > 0 || m.hurt > 0))) {
+        /* 熊主動攻擊；野豬與巨獾平常中立，被打後才追擊。 */
+        var aggro = m.type === TYPE.BEAR ? W.CFG.BEAR_AGGRO : (m.type === TYPE.BADGER ? W.CFG.BADGER_AGGRO : W.CFG.WOLF_AGGRO);
         if (d < aggro && !W.Stats.isDead()) {
           m.threatT = Math.max(m.threatT, 0.35);
           inv = (d > 0.001) ? 1 / d : 0;
           m.vx = dx * inv;
           m.vy = dy * inv;
-          if (d < W.CFG.WOLF_HIT_RANGE + 6) {
+          if (d < W.CFG.WOLF_HIT_RANGE + (m.type === TYPE.BADGER ? 8 : 6)) {
             if (m.cd <= 0) {
               m.cd = W.CFG.WOLF_HIT_CD;
               m.threatT = 1; m.attackSeq++;
-              if (W.Stats.damage((m.type === TYPE.BEAR) ? W.CFG.BEAR_DMG : W.CFG.BOAR_DMG, m.type === TYPE.BEAR ? 'bear-contact' : 'boar-contact', m.wx, m.wy) && W.Game && W.Game.onHurt) W.Game.onHurt();
+              var contactDmg = m.type === TYPE.BEAR ? W.CFG.BEAR_DMG : (m.type === TYPE.BADGER ? W.CFG.BADGER_DMG : W.CFG.BOAR_DMG);
+              var contactKey = m.type === TYPE.BEAR ? 'bear-contact' : (m.type === TYPE.BADGER ? 'badger-contact' : 'boar-contact');
+              if (W.Stats.damage(contactDmg, contactKey, m.wx, m.wy) && W.Game && W.Game.onHurt) W.Game.onHurt();
             }
             m.vx = 0; m.vy = 0;
           }
@@ -240,10 +354,10 @@ W.Mobs = (function() {
   }
 
   /* 玩家攻擊：回傳結果物件或 null（結果物件為單一共用實例，避免每次配置） */
-  var _hit = { name: '', killed: false, dmg: 0, type: 0 };
+  var _hit = { name: '', killed: false, dmg: 0, type: 0, loot: '' };
 
-  function attack(wx, wy, fx, fy, dmg) {
-    var R = W.CFG.ATTACK_RANGE;
+  function attack(wx, wy, fx, fy, dmg, range) {
+    var R = isFinite(range) && range > 0 ? range : W.CFG.ATTACK_RANGE;
     var best = null, bestScore = -1e9;
     var i, m, dx, dy, d2, d, dot, score;
 
@@ -270,10 +384,15 @@ W.Mobs = (function() {
   function applyHit(m, dmg) {
     m.hp -= dmg;
     m.hurt = 3.0;
+    if (m.type === TYPE.BADGER) m.aggroT = Math.max(m.aggroT, 7.0);
+    else if (m.type === TYPE.BOAR) m.aggroT = Math.max(m.aggroT, 4.5);
+    else if (m.type === TYPE.GOAT) m.aggroT = Math.max(m.aggroT, 3.5);
+    else if (m.type === TYPE.FOX) m.aggroT = Math.max(m.aggroT, 4.0);
     _hit.name = NAMES[m.type];
     _hit.type = m.type;
     _hit.dmg = dmg;
     _hit.killed = false;
+    _hit.loot = '';
 
     if (m.hp <= 0) {
       m.alive = false;
@@ -283,17 +402,33 @@ W.Mobs = (function() {
       } else if (m.type === TYPE.RABBIT) {
         W.Inv.add('meat', 1);
         W.Inv.add('hide', 1);
+        _hit.loot = '\u751f\u8089\u00d71\u3001\u6bdb\u76ae\u00d71';
       } else if (m.type === TYPE.CROW) {
         /* 烏鴉沒有可用的部位 */
       } else if (m.type === TYPE.BOAR) {
         W.Inv.add('meat', 3);
         W.Inv.add('hide', 2);
+        _hit.loot = '\u751f\u8089\u00d73\u3001\u6bdb\u76ae\u00d72';
       } else if (m.type === TYPE.BEAR) {
         W.Inv.add('meat', 5);
         W.Inv.add('hide', 4);
+        _hit.loot = '\u751f\u8089\u00d75\u3001\u6bdb\u76ae\u00d74';
+      } else if (m.type === TYPE.FOX) {
+        W.Inv.add('meat', 1);
+        W.Inv.add('hide', 2);
+        _hit.loot = '\u751f\u8089\u00d71\u3001\u6bdb\u76ae\u00d72';
+      } else if (m.type === TYPE.GOAT) {
+        W.Inv.add('meat', 3);
+        W.Inv.add('hide', 2);
+        _hit.loot = '\u751f\u8089\u00d73\u3001\u6bdb\u76ae\u00d72';
+      } else if (m.type === TYPE.BADGER) {
+        W.Inv.add('meat', 3);
+        W.Inv.add('hide', 3);
+        _hit.loot = '\u751f\u8089\u00d73\u3001\u6bdb\u76ae\u00d73';
       } else {
         W.Inv.add('meat', 2);
         W.Inv.add('hide', 2);
+        _hit.loot = '\u751f\u8089\u00d72\u3001\u6bdb\u76ae\u00d72';
       }
     }
     return _hit;
@@ -319,20 +454,31 @@ W.Mobs = (function() {
   function radius(type) { return RAD[type]; }
   function nameOf(type) { return NAMES[type]; }
 
+  /* 夥伴與快速移動共用：和平動物不應被自動獵殺，也不應無故阻擋傳送。 */
+  function isHostile(m) {
+    if (!m || !m.alive) return false;
+    if (m.challengeKey) return true;
+    if (m.type === TYPE.WOLF || m.type === TYPE.SHADOW || m.type === TYPE.BEAR) return true;
+    if (m.hurt > 0 || m.aggroT > 0 || m.threatT > 0) return true;
+    return m.type === TYPE.GOAT && (m.windupT > 0 || m.chargeT > 0);
+  }
+
   function clearAll() {
     var i;
     for (i = 0; i < pool.length; i++) pool[i].alive = false;
   }
 
   function stats() {
-    var i, n = 0, w = 0, sh = 0;
+    var i, n = 0, w = 0, sh = 0, byType = [];
+    for (i = 0; i < NAMES.length; i++) byType[i] = 0;
     for (i = 0; i < pool.length; i++) {
       if (!pool[i].alive) continue;
       n++;
+      byType[pool[i].type]++;
       if (pool[i].type === TYPE.WOLF) w++;
       if (pool[i].type === TYPE.SHADOW) sh++;
     }
-    return { alive: n, wolves: w, shadows: sh, cap: W.CFG.MOB_MAX };
+    return { alive: n, wolves: w, shadows: sh, cap: W.CFG.MOB_MAX, byType: byType };
   }
 
   return {
@@ -340,10 +486,14 @@ W.Mobs = (function() {
     update: update,
     attack: attack,
     hitAt: hitAt,
+    spawnChallenge: spawnChallenge,
+    challengeAlive: challengeAlive,
+    clearChallenge: clearChallenge,
     count: count,
     at: at,
     radius: radius,
     nameOf: nameOf,
+    isHostile: isHostile,
     clearAll: clearAll,
     stats: stats
   };

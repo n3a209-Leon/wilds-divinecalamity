@@ -59,7 +59,8 @@ W.Player = {
     if (this.rollT > 0) {
       this.rollT = Math.max(0, this.rollT - dt);
       this.moving = true;
-      moveSafe(this, this.rollX * 430 * dt, this.rollY * 430 * dt);
+      var rollMul = W.BondMate && W.BondMate.rollSpeedMultiplier ? W.BondMate.rollSpeedMultiplier() : 1;
+      moveSafe(this, this.rollX * 430 * rollMul * dt, this.rollY * 430 * rollMul * dt);
     } else {
       this.moving = (mx !== 0 || my !== 0);
 
@@ -68,6 +69,7 @@ W.Player = {
         this.faceY = my;
 
         var moveMult = (W.DivineArms && W.DivineArms.speedMultiplier) ? W.DivineArms.speedMultiplier() : 1;
+        if (W.LaopiLife && W.LaopiLife.movementMultiplier) moveMult *= W.LaopiLife.movementMultiplier();
         var step = W.CFG.PLAYER_SPEED * moveMult * dt;
 
         moveSafe(this, mx * step, my * step);
@@ -98,9 +100,10 @@ W.Player = {
     if (this.atkCd > 0) return null;
     if (!W.Stats.spend(W.CFG.ATTACK_COST)) return 'tired';
     this.atkCd = W.CFG.ATTACK_COOLDOWN;
-    this.lastAttackDmg = W.CFG.ATTACK_DMG + W.Craft.attackBonus() + (this.perfectT > 0 ? 18 : 0);
+    this.lastAttackDmg = W.CFG.ATTACK_DMG + W.Craft.attackBonus() + (this.perfectT > 0 ? 18 : 0)
+      + (W.BondMate && W.BondMate.attackDamageBonus ? W.BondMate.attackDamageBonus() : 0);
     this.perfectT = 0;
-    return W.Mobs.attack(this.wx, this.wy, this.faceX, this.faceY, this.lastAttackDmg);
+    return W.Mobs.attack(this.wx, this.wy, this.faceX, this.faceY, this.lastAttackDmg, this.attackRange());
   },
 
   /* 28 體力、0.28 秒無敵、0.78 秒共用冷卻。移動方向優先，靜止時朝面向翻滾。 */
@@ -130,6 +133,9 @@ W.Player = {
   rollCooldown: function() { return Math.max(0, this.rollCd); },
   perfectReady: function() { return this.perfectT > 0; },
   lastAttackDamage: function() { return this.lastAttackDmg || (W.CFG.ATTACK_DMG + W.Craft.attackBonus()); },
+  attackRange: function() {
+    return W.CFG.ATTACK_RANGE + (W.BondMate && W.BondMate.attackRangeBonus ? W.BondMate.attackRangeBonus() : 0);
+  },
 
   goHome: function() {
     this.wx = this.homeWx || W.CFG.START_WX;

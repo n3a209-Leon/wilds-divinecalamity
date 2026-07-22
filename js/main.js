@@ -9,7 +9,7 @@ W.Game = (function() {
   var frame = 0;
   var elToast, toastT = 0;
   var elHp, elFood, elStam, elSan, elTime, elMates, elDivine, elGuideTitle, elGuideHint;
-  var elJournalTrackTitle, elJournalTrackText, elJournalTrackFill;
+  var elJournalTrackTitle, elJournalTrackText, elJournalTrackFill, elRealmTitle, elRealmText;
   var deadT = 0;
   var craftOpen = false;
   var travelOpen = false, equipOpen = false, journalOpen = false, rewardOpen = false;
@@ -41,7 +41,8 @@ W.Game = (function() {
     if (elSan) elSan.style.width = (W.Stats.sanPct() * 100).toFixed(0) + '%';
     if (elMates) {
       var _bm = W.BondMate && W.BondMate.stats ? W.BondMate.stats() : null;
-      elMates.textContent = (_bm ? ('\uD83D\uDC36 \u8001\u76ae\u5b88\u8b77 ' + Math.round(_bm.energy) + '%') : '')
+      elMates.textContent = (_bm ? ('\uD83D\uDC36' + Math.round(_bm.energy) + ' \u00b7 \uD83E\uDD1D' + Math.round(_bm.sync || 0)
+        + (_bm.echo > 0 ? (' \u00b7 \u2728' + Math.ceil(_bm.echo) + 's') : '')) : '')
         + (W.Mates && W.Mates.recruitedCount() > 0
           ? ('\u3000\uD83D\uDC65 \u5925\u4f34 ' + W.Mates.recruitedCount() + '/' + W.Mates.count()
              + (W.Mates.stats().hungry ? '\uff08\u9913\u4e86 ' + W.Mates.stats().hungry + '\uff09' : '')) : '');
@@ -49,6 +50,7 @@ W.Game = (function() {
     if(elDivine&&W.DivineArms)updateDivineHud();
     if (W.Guide && elGuideTitle && elGuideHint) updateGuideHud();
     if (W.Journal && elJournalTrackText) updateJournalHud();
+    updateRealmHud();
     if (W.Rewards) updateRewardBadge();
     elTime.textContent = '\u7b2c ' + W.Time.dayNo() + ' \u5929 ' + W.Time.clock() + ' \u00b7 ' + W.Time.phase();
   }
@@ -80,6 +82,25 @@ W.Game = (function() {
     elJournalTrackTitle.textContent = '📜 ' + cur.chapter;
     elJournalTrackText.textContent = cur.title + ' · ' + cur.text;
     elJournalTrackFill.style.width = Math.max(0, Math.min(100, cur.value / cur.max * 100)) + '%';
+  }
+
+  function updateRealmHud() {
+    var rs = W.DuoRealm && W.DuoRealm.state ? W.DuoRealm.state() : null;
+    var bs = W.BondMate && W.BondMate.stats ? W.BondMate.stats() : null;
+    if (document.body) document.body.classList[rs && rs.active ? 'add' : 'remove']('realm-active');
+    if (rs && rs.active && elRealmTitle && elRealmText) {
+      elRealmTitle.textContent = (rs.icon || '\uD83D\uDC3E') + ' ' + rs.name;
+      var realmExtra = rs.choice ? (' · 預兆：' + rs.omen) : ((!rs.combat && rs.phase !== 'sniff') ? (' · 房間 ' + rs.roomIndex + '/' + rs.roomCount) : '');
+      elRealmText.textContent = rs.hint + realmExtra + (rs.interactable ? ' \u00b7 \u6309攻擊鍵讓老皮變形' : '');
+    }
+    if (_btnBond) {
+      var active = !!(bs && bs.suit > 0), ready = !!(bs && bs.comboReady);
+      _btnBond.classList[ready ? 'add' : 'remove']('ready');
+      _btnBond.classList[active ? 'add' : 'remove']('active');
+      var label = document.getElementById('bond-hold-label');
+      if (label) label.textContent = active ? ('戰衣 ' + Math.ceil(bs.suit) + 's') : '短按/長按';
+      _btnBond.setAttribute('aria-label', active ? '老皮戰衣發動中' : '老皮連攜已就緒，短按夾擊，長按合體');
+    }
   }
 
   var _rewardSig = '';
@@ -130,6 +151,19 @@ W.Game = (function() {
     toastT = W.CFG.TOAST_TIME;
   }
 
+  function realmLootText(lt, brave, rare) {
+    if (!lt) return '秘境獲得已記錄';
+    var msg = (brave ? '✨ 共鳴寶藏' : '🎒 秘境戰利品') + '：';
+    if (lt.metal) msg += ' 金屬×' + lt.metal;
+    if (lt.flint) msg += ' 燧石×' + lt.flint;
+    if (lt.arrow) msg += ' 箭×' + lt.arrow;
+    if (lt.hide) msg += ' 毛皮×' + lt.hide;
+    if (lt.cooked) msg += ' 烤肉×' + lt.cooked;
+    if (rare) msg += ' · 稀有房間加成';
+    msg += brave ? ' · 老皮共鳴強化' : ' · 與老皮安全返還';
+    return msg;
+  }
+
   function tickToast(dt) {
     if (toastT <= 0) return;
     toastT -= dt;
@@ -141,7 +175,7 @@ W.Game = (function() {
                 fire: 'ui/campfire', furnace: 'ui/furnace', metal: 'ui/metal',
                 soup: 'ui/soup', cook: 'ui/cooked', arrow: 'ui/arrow',
                 bench: 'workbench', store: 'crate', wall: 'wall', fence: 'fence',
-                rack: 'rack', bed: 'bed', jerky: 'ui/jerky' };
+                rack: 'rack', bed: 'bed', jerky: 'ui/jerky', sandwich: 'ui/sandwich' };
     if (map[r.id]) return '<img class="itm-img" src="' + W.CFG.ART_DIR + map[r.id] + '.png" alt="">';
     return r.icon;
   }
@@ -185,7 +219,7 @@ W.Game = (function() {
     var r = W.Craft.make(id);
     if (r === true) {
       if (W.Sfx) W.Sfx.place();
-      showToast('\u5236\u4f5c\u5b8c\u6210');
+      showToast(id === 'sandwich' ? '🥪 老皮端正坐好，等你決定今天的三明治怎麼分' : '\u5236\u4f5c\u5b8c\u6210');
       renderCraft();
     } else {
       showToast(r);
@@ -279,6 +313,14 @@ W.Game = (function() {
 
   function bagHtml() {
     var ids = W.Inv.ORDER, html = '', i, id, n;
+    if (W.LaopiLife && W.LaopiLife.status) {
+      var life = W.LaopiLife.status();
+      var boonName = {guard:'守護充滿',suit:'戰衣延長',rescue:'倒地救援',realm:'稀有秘境'}[life.boon] || '';
+      html += '<div class="bond-story"><strong>🐶 ' + life.styleName + '</strong>'
+           + '<span>' + life.styleLine + '</span>'
+           + '<small>🥪 終極三明治 ' + life.ingredientCount + '/4'
+           + (life.boonReady && boonName ? (' · 今日效果：' + boonName) : '') + '</small></div>';
+    }
     html += '<div class="bag-head">\u80cc\u5305\uff08' + W.Inv.total() + ' / ' + W.Inv.cap() + '\uff09'
          + (W.Inv.isFull() ? ' <span style="color:#ff9a8a">\u5df2\u6eff</span>' : '') + '</div>';
     for (i = 0; i < ids.length; i++) {
@@ -587,13 +629,13 @@ W.Game = (function() {
 
   function uiModalOpen(){
     var ids=['bag-panel','store-panel','craft-panel','travel-panel','equip-panel','journal-panel','reward-panel',
-      'settings-panel','cloud-conflict-panel','diag-panel','goal-card','update-panel','quick-menu'];
+      'settings-panel','cloud-conflict-panel','diag-panel','goal-card','update-panel','quick-menu','realm-choice-panel','sandwich-choice-panel'];
     var i,el;
     for(i=0;i<ids.length;i++){el=document.getElementById(ids[i]);if(el&&el.classList&&el.classList.contains('open'))return true;}
     return false;
   }
 
-  var _btnA = null, _btnRoll = null;
+  var _btnA = null, _btnRoll = null, _btnBond = null;
   var _btnMode = '';
   var _btnTimer = 0;
   var _bowCd = 0;
@@ -608,6 +650,23 @@ W.Game = (function() {
       if(W.Settings)W.Settings.vibrate(18);
     }else if(r==='tired')showToast('體力不足，無法翻滾');
     else if(r==='dead')showToast('倒下時無法翻滾');
+  }
+
+  function activateBondPower(kind) {
+    if (!W.BondMate || !W.BondMate.activatePower) return;
+    var ok = W.BondMate.activatePower(kind);
+    if (ok) {
+      var suitSeconds = W.BondMate.stats ? Math.ceil(W.BondMate.stats().suit || 6) : 6;
+      showToast(kind === 'suit' ? ('🐶 老皮戰衣！' + suitSeconds + ' 秒內擋一次重擊，伸縮攻擊啟動') : '🤝 彈力夾擊！');
+      if (W.Settings) W.Settings.vibrate(kind === 'suit' ? [22,35,32] : [18,22,24]);
+    } else if (kind === 'combo') showToast('附近沒有可夾擊的目標');
+  }
+
+  function chooseSandwichBoon(kind) {
+    if (!W.LaopiLife || !W.LaopiLife.chooseBoon || !W.LaopiLife.chooseBoon(kind)) return;
+    document.getElementById('sandwich-choice-panel').classList.remove('open');
+    document.getElementById('bag-body').innerHTML = bagHtml();
+    W.Save.save();
   }
 
   /* 一次迴圈同時得到最近距離與最近目標，不跑兩趟 */
@@ -647,7 +706,7 @@ W.Game = (function() {
 
   function canBow(dist) {
     return W.Craft.equipped && W.Craft.equipped() === 'bow' && W.Inv.count('arrow') > 0 &&
-           dist > W.CFG.ATTACK_RANGE && dist <= W.CFG.BOW_RANGE;
+           dist > (W.Player.attackRange ? W.Player.attackRange() : W.CFG.ATTACK_RANGE) && dist <= W.CFG.BOW_RANGE;
   }
 
   function updateActionBtn(dt) {
@@ -666,7 +725,25 @@ W.Game = (function() {
     var mode, icon;
     var P = W.Player;
 
-    if (W.Calamity && W.Calamity.near(P.wx, P.wy)) {
+    var realmState = W.DuoRealm && W.DuoRealm.state ? W.DuoRealm.state() : null;
+    var realmCombat = !!(realmState && realmState.active && realmState.combat);
+    if (realmState && realmState.active && realmState.interactable) {
+      if (_btnMode !== 'realm-' + realmState.phase) {
+        _btnMode = 'realm-' + realmState.phase;
+        _btnA.textContent = realmState.icon || '🐾';
+        _btnA.style.opacity = '1'; _btnA.style.transform = 'scale(1.12)';
+      }
+      return;
+    }
+    if (realmState && realmState.active && !realmState.combat) {
+      if (_btnMode !== 'realm-wait-' + realmState.phase) {
+        _btnMode = 'realm-wait-' + realmState.phase;
+        _btnA.textContent = '🐾'; _btnA.style.opacity = '0.45'; _btnA.style.transform = 'scale(1)';
+      }
+      return;
+    }
+
+    if (!realmCombat && W.Calamity && W.Calamity.near(P.wx, P.wy)) {
       if (_btnMode !== 'calamity') {
         _btnMode = 'calamity';
         var cst=W.Calamity.stats?W.Calamity.stats():null;
@@ -677,7 +754,7 @@ W.Game = (function() {
       return;
     }
 
-    if (nearStore()) {
+    if (!realmCombat && nearStore()) {
       if (_btnMode !== 'store') {
         _btnMode = 'store';
         _btnA.textContent = '\uD83D\uDDC3\uFE0F';
@@ -687,7 +764,7 @@ W.Game = (function() {
       return;
     }
 
-    if (W.Sites && W.Sites.chestAt(P.wx, P.wy)) {
+    if (!realmCombat && W.Sites && W.Sites.chestAt(P.wx, P.wy)) {
       if (_btnMode !== 'loot') {
         _btnMode = 'loot';
         _btnA.textContent = '\uD83D\uDCE6';
@@ -698,7 +775,7 @@ W.Game = (function() {
     }
 
     var nm = nearestTargetDist();
-    if (nm <= W.CFG.ATTACK_RANGE) {
+    if (nm <= (W.Player.attackRange ? W.Player.attackRange() : W.CFG.ATTACK_RANGE)) {
       mode = 'atk';
       icon = '\u2694\uFE0F';
     } else if (canBow(nm)) {
@@ -732,17 +809,26 @@ W.Game = (function() {
   function doAction() {
     if (uiModalOpen()) return;
     if (W.Stats.isDead()) return;
+    var realmCombat = false;
 
-    if (W.Calamity && W.Calamity.near(W.Player.wx, W.Player.wy)) {
+    if (W.DuoRealm && W.DuoRealm.isActive && W.DuoRealm.isActive()) {
+      if (W.DuoRealm.tryAction && W.DuoRealm.tryAction()) return;
+      var realmNow = W.DuoRealm.state ? W.DuoRealm.state() : null;
+      if (!realmNow || !realmNow.combat) return;
+      realmCombat = true;
+    }
+
+    if (!realmCombat && W.Calamity && W.Calamity.near(W.Player.wx, W.Player.wy)) {
       var ritual=W.Calamity.summon();
       if(ritual)_btnMode='';
       return;
     }
 
-    if (nearStore()) { openStore(); return; }
+    if (!realmCombat && nearStore()) { openStore(); return; }
 
-    var chest = W.Sites ? W.Sites.chestAt(W.Player.wx, W.Player.wy) : null;
+    var chest = !realmCombat && W.Sites ? W.Sites.chestAt(W.Player.wx, W.Player.wy) : null;
     if (chest) {
+      if (W.DuoRealm && W.DuoRealm.begin && W.DuoRealm.begin(chest)) return;
       var lt = W.Sites.loot(chest);
       if (lt) {
         if (W.Sfx) W.Sfx.kill();
@@ -752,6 +838,7 @@ W.Game = (function() {
         if (lt.arrow)  msg += ' \u7bad\u00d7' + lt.arrow;
         if (lt.hide)   msg += ' \u6bdb\u76ae\u00d7' + lt.hide;
         if (lt.cooked) msg += ' \u70e4\u8089\u00d7' + lt.cooked;
+        if (lt.bond) msg += ' \u00b7 \u8001\u76ae\u641c\u5c0b +' + lt.bond + '\uff0c\u5171\u9cf4 45 \u79d2';
         showToast(msg);
         W.Save.save();
       }
@@ -784,12 +871,12 @@ W.Game = (function() {
     if (!a && W.Bosses) {
       a = W.Bosses.hitAt(W.Player.wx + W.Player.faceX * 40,
                          W.Player.wy + W.Player.faceY * 40,
-                         W.CFG.ATTACK_RANGE, attackDmg);
+                         W.Player.attackRange ? W.Player.attackRange() : W.CFG.ATTACK_RANGE, attackDmg);
     }
     if (!a && W.Calamity && W.Calamity.hitAt) {
       a = W.Calamity.hitAt(W.Player.wx + W.Player.faceX * 40,
                            W.Player.wy + W.Player.faceY * 40,
-                           W.CFG.ATTACK_RANGE, attackDmg);
+                           W.Player.attackRange ? W.Player.attackRange() : W.CFG.ATTACK_RANGE, attackDmg);
     }
     if (a === 'tired') { showToast('\u9ad4\u529b\u4e0d\u8db3'); return; }
     if (a) {
@@ -800,6 +887,8 @@ W.Game = (function() {
       showToast(a.killed
         ? (a.boss ? ('擊敗 ' + a.name + '！') : ('\u64ca\u5012 ' + a.name + '\uff01\uff0b\u751f\u8089\u3001\u6bdb\u76ae'))
         : (a.name + ' \u53d7\u5230 ' + a.dmg + ' \u9ede\u50b7\u5bb3'));
+      if (a.killed && !a.boss) showToast(mobKillText(a));
+      if(W.BondMate&&W.BondMate.notePlayerHit)W.BondMate.notePlayerHit(a);
       return;
     }
     doHarvest();
@@ -834,7 +923,8 @@ W.Game = (function() {
     W.Stats.eat(-W.CFG.SLEEP_FOOD, W.CFG.SLEEP_HEAL);
     W.Mobs.clearAll();
     W.Save.save();
-    showToast('\u4e00\u89ba\u5230\u5929\u4eae\uff0c\u7b2c ' + W.Time.dayNo() + ' \u5929\u958b\u59cb');
+    var campLine = W.LaopiLife && W.LaopiLife.onCampRest ? W.LaopiLife.onCampRest() : '';
+    showToast(campLine || ('\u4e00\u89ba\u5230\u5929\u4eae\uff0c\u7b2c ' + W.Time.dayNo() + ' \u5929\u958b\u59cb'));
   }
 
   function cloudLabel() {
@@ -934,9 +1024,12 @@ W.Game = (function() {
     deadT += dt;
     if (deadT < 1.6) return;
     deadT = 0;
-    W.Stats.revive();
+    W.Stats.revive(3.5);
     W.Player.goHome();
+    if (W.Calamity && W.Calamity.onPlayerRespawn) W.Calamity.onPlayerRespawn();
     W.Mobs.clearAll();
+    if (W.Arrows && W.Arrows.clearAll) W.Arrows.clearAll();
+    if (W.BondMate) W.BondMate.noteEvent('retreat');
     W.Camera.snapTo(W.Player.wx, W.Player.wy);
     W.Save.save();
     showToast('\u4f60\u6607\u5929\u4e86\u2026\u2026\u65bc\u71df\u5730\u91cd\u65b0\u7747\u958b\u96d9\u773c');
@@ -960,6 +1053,10 @@ W.Game = (function() {
     showToast('\uD83C\uDFC6 \u9996\u6b21\u64ca\u5012\u91ce\u72fc\uff01');
   }
 
+  function mobKillText(hit) {
+    return '\u64ca\u5012 ' + hit.name + '\uff01' + (hit.loot ? ('\uff0b' + hit.loot) : '');
+  }
+
   function onArrowHit(hit, wx, wy) {
     if(W.Render&&W.Render.impact)W.Render.impact(wx,wy,!!(hit&&hit.killed));
     W.Render.dmgText(wx, wy - 10, '-' + hit.dmg);
@@ -968,6 +1065,8 @@ W.Game = (function() {
       checkWolfMilestone(hit.type);
       showToast(hit.boss ? ('擊敗 ' + hit.name + '！') : ('\u64ca\u5012 ' + hit.name + '\uff01\uff0b\u751f\u8089\u3001\u6bdb\u76ae'));
     }
+    if (hit.killed && !hit.boss) showToast(mobKillText(hit));
+    if(W.BondMate&&W.BondMate.notePlayerHit)W.BondMate.notePlayerHit(hit);
   }
 
   var _tap = { sx: 0, sy: 0 };
@@ -1073,6 +1172,7 @@ W.Game = (function() {
     if (!r) { showToast('\u9644\u8fd1\u6c92\u6709\u53ef\u63a1\u96c6\u7684\u6771\u897f'); return; }
     if (W.Inv.isFull()) { showToast('\u80cc\u5305\u6eff\u4e86\uff0c\u56de\u5132\u7269\u7bb1\u5378\u8ca8'); }
     if (W.Sfx) W.Sfx.harvest();
+    if (W.LaopiLife && W.LaopiLife.noteHarvest) W.LaopiLife.noteHarvest(r.item);
     showToast(r.name + ' \uff0b' + W.Inv.label(r.item) + ' \u00d7' + r.n);
   }
 
@@ -1101,6 +1201,8 @@ W.Game = (function() {
       if (W.Bosses) W.Bosses.update(simDt);
       if (W.Mates) W.Mates.update(simDt);
       if (W.BondMate) W.BondMate.update(simDt);
+      if (W.DuoRealm) W.DuoRealm.update(simDt);
+      if (W.LaopiLife) W.LaopiLife.update(simDt);
       if (W.Chatter && W.Mates) {
         var _hn = W.Mates.stats().hungry;
         if (_hn > _lastHungry && _hn > 0) W.Chatter.speak('hungry');
@@ -1155,7 +1257,7 @@ W.Game = (function() {
     var bs2 = W.Bosses ? W.Bosses.stats() : { alive: 0, defeated: 0 };
     var rw = W.Rewards ? W.Rewards.stats() : { honor:0, rank:'', skins:0, totalSkins:0, unseen:0 };
     return [
-      '=== WILDS 診斷 (Phase 20) ===',
+      '=== WILDS 診斷 (Phase 25) ===',
       '',
       'FPS          : ' + Math.round(fps),
       'DPR          : ' + Math.min(window.devicePixelRatio || 1, W.Settings.dprCap()),
@@ -1206,7 +1308,7 @@ W.Game = (function() {
       '\u9ad4\u529b         : ' + W.Stats.stam().toFixed(0) + ' / 100',
       '\u6b7b\u4ea1\u72c0\u614b     : ' + W.Stats.isDead(),
       '\u71df\u5730\u5750\u6a19     : ' + Math.round(W.Player.homeWx) + ', ' + Math.round(W.Player.homeWy),
-      '\u751f\u7269\u6578\u91cf     : ' + ms.alive + ' / ' + ms.cap + '\uff08\u72fc ' + ms.wolves + '\uff09',
+      '\u751f\u7269\u6578\u91cf     : ' + ms.alive + ' / ' + ms.cap + '\uff08\u72fc ' + ms.wolves + '\u3001\u72d0 ' + ((ms.byType&&ms.byType[7])||0) + '\u3001\u5c71\u7f8a ' + ((ms.byType&&ms.byType[8])||0) + '\u3001\u5de8\u737e ' + ((ms.byType&&ms.byType[9])||0) + '\uff09',
       '\u751f\u7269\u4e0d\u5b58\u6a94 : \u96e2\u958b\u5f8c\u91cd\u65b0\u751f\u6210',
       '',
       '--- \u5408\u6210\u8207\u5efa\u9020 (Phase 6) ---',
@@ -1230,12 +1332,12 @@ W.Game = (function() {
       '\u5132\u7269\u7bb1     : ' + W.Store.total() + ' / ' + W.CFG.STORE_CAP,
       '\u9670\u5f71\u6578\u91cf     : ' + (ms.shadows || 0),
       '\u5925\u4f34         : ' + mt.recruited + ' / ' + mt.total + '\uff08\u9913 ' + mt.hungry + '\uff09',
-      '\u8001\u76ae\u5b88\u8b77     : ' + Math.round(bm.energy) + '%\uff08' + bm.mood + '\uff09\u3001\u540c\u884c ' + bm.daysTogether + ' \u5929',
+      '\u8001\u76ae\u5b88\u8b77     : ' + Math.round(bm.energy) + '%\uff08' + bm.mood + '\uff09\u3001\u9023\u651c ' + Math.round(bm.sync || 0) + '%\u3001\u79d8\u5883\u5171\u9cf4 ' + Math.ceil(bm.echo || 0) + ' \u79d2',
       '\u8001\u76ae\u8a18\u61b6     : \u64cb\u50b7 ' + bm.blocks + '\u3001\u6551\u63f4 ' + bm.rescues + '\u3001\u9996\u9818 ' + (bm.bossWins || 0) + '\u3001\u707d\u798d ' + (bm.calamityWins || 0),
       '\u9b54\u738b         : \u5b58\u6d3b ' + bs2.alive + '\u3001\u5df2\u64ca\u6557 ' + bs2.defeated,
       '荒野榮譽     : ' + rw.honor + '（' + rw.rank + '）',
       '傳說 Skin   : ' + rw.skins + ' / ' + rw.totalSkins + '（未讀 ' + rw.unseen + '）',
-      '\u9130\u8fd1\u907a\u8de1     : ' + ss.near + '\uff08\u5df2\u641c\u5237 ' + ss.looted + ' \u5ea7\uff09',
+      '\u9130\u8fd1\u79d8\u5883     : ' + ss.near + '\uff08\u5df2\u641c\u5237 ' + ss.looted + ' \u5ea7\uff09',
       '',
       '--- \u96f2\u7aef (Phase 8) ---',
       '\u96f2\u7aef\u72c0\u614b     : ' + cl.reason,
@@ -1288,7 +1390,8 @@ W.Game = (function() {
     ['Cloud', 'cloud.js'], ['Sfx', 'sfx.js'], ['Sites', 'sites.js'], ['Store', 'store.js'],
     ['Mates', 'companions.js'], ['DivineArms', 'divine-arms.js'],
     ['Bosses', 'bosses.js'], ['Chatter', 'chatter.js'], ['BondMate', 'bondmate.js'], ['Sages', 'sages.js'], ['Calamity', 'calamity.js'], ['Guide', 'guide.js'], ['Travel', 'travel.js'],
-    ['Journal', 'journal.js'], ['Skins', 'skins.js'], ['Rewards', 'rewards.js']
+    ['Journal', 'journal.js'], ['Skins', 'skins.js'], ['Rewards', 'rewards.js'],
+    ['LaopiLife', 'laopi-life.js'], ['DuoRealm', 'duo-realm.js']
   ];
 
   function checkModules() {
@@ -1333,6 +1436,7 @@ W.Game = (function() {
     elToast = document.getElementById('toast');
     _btnA   = document.getElementById('btn-a');
     _btnRoll = document.getElementById('btn-roll');
+    _btnBond = document.getElementById('btn-bond');
     elHp    = document.getElementById('bar-hp');
     elFood  = document.getElementById('bar-food');
     elStam  = document.getElementById('bar-stam');
@@ -1345,6 +1449,8 @@ W.Game = (function() {
     elJournalTrackTitle = document.getElementById('journal-track-title');
     elJournalTrackText = document.getElementById('journal-track-text');
     elJournalTrackFill = document.getElementById('journal-track-fill');
+    elRealmTitle = document.getElementById('realm-status-title');
+    elRealmText = document.getElementById('realm-status-text');
 
     W.Settings.load();
     if(W.Sfx&&W.Sfx.setVolume)W.Sfx.setVolume(W.Settings.get('sfxVolume'));
@@ -1362,10 +1468,34 @@ W.Game = (function() {
 
     on('btn-a', 'pointerdown', function(e) { e.preventDefault(); doAction(); });
     on('btn-roll', 'pointerdown', function(e) { e.preventDefault(); doRoll(); });
+    var bondDownAt = 0;
+    on('btn-bond', 'pointerdown', function(e) {
+      e.preventDefault(); bondDownAt = performance.now();
+      if (_btnBond) _btnBond.classList.add('holding');
+      if (e.currentTarget && e.currentTarget.setPointerCapture && e.pointerId !== undefined) {
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch (ignore) {}
+      }
+    });
+    on('btn-bond', 'pointerup', function(e) {
+      e.preventDefault();
+      if (_btnBond) _btnBond.classList.remove('holding');
+      if (!bondDownAt) return;
+      var held = performance.now() - bondDownAt; bondDownAt = 0;
+      activateBondPower(held >= 480 ? 'suit' : 'combo');
+    });
+    on('btn-bond', 'pointercancel', function() { bondDownAt = 0; if (_btnBond) _btnBond.classList.remove('holding'); });
     window.addEventListener('keydown',function(e){
       if(e.key==='Escape'&&quickMenuOpen){e.preventDefault();closeQuickMenu();return;}
       if((e.key===' '||e.code==='Space')&&!e.repeat){e.preventDefault();doRoll();}
+      if((e.key==='f'||e.key==='F')&&!e.repeat){e.preventDefault();activateBondPower(e.shiftKey?'suit':'combo');}
     });
+
+    on('realm-safe', 'click', function(){if(W.DuoRealm)W.DuoRealm.choose(false);});
+    on('realm-brave', 'click', function(){if(W.DuoRealm)W.DuoRealm.choose(true);document.getElementById('realm-choice-panel').classList.remove('open');});
+    on('sandwich-guard', 'click', function(){chooseSandwichBoon('guard');});
+    on('sandwich-suit', 'click', function(){chooseSandwichBoon('suit');});
+    on('sandwich-rescue', 'click', function(){chooseSandwichBoon('rescue');});
+    on('sandwich-realm', 'click', function(){chooseSandwichBoon('realm');});
 
     on('btn-guide', 'click', function() {
       if (!W.Guide) return;
@@ -1498,6 +1628,12 @@ W.Game = (function() {
       eat('jerky', W.CFG.EAT_JERKY_FOOD, W.CFG.EAT_JERKY_HP, W.CFG.SAN_JERKY);
     });
 
+    on('btn-share-laopi', 'click', function() {
+      var shared = W.LaopiLife && W.LaopiLife.shareFood ? W.LaopiLife.shareFood() : false;
+      if (shared !== true) showToast(shared || '現在無法和老皮分享食物');
+      document.getElementById('bag-body').innerHTML = bagHtml();
+    });
+
     on('btn-char', 'click', nextChar);
 
     on('store-body', 'click', onStoreClick);
@@ -1609,6 +1745,80 @@ W.Game = (function() {
     };
     W.Game.onBondHit = function(m, hit) {
       W.Render.dmgText(hit.wx || m.wx, (hit.wy || m.wy) - 10, '-' + hit.dmg);
+    };
+    W.Game.onBondCombo = function(hit, wx, wy, dmg, echoed) {
+      showToast(echoed ? '\uD83D\uDC36 \u79d8\u5883\u5171\u9cf4\uff1a\u8001\u76ae\u5f48\u529b\u593e\u64ca\uff01' : '\uD83D\uDC36 \u4e3b\u52d5\u9023\u651c\uff1a\u8001\u76ae\u5f48\u529b\u593e\u64ca\uff01');
+      if(W.Render){W.Render.dmgText(wx,wy-22,'-' + (hit&&hit.dmg||dmg));if(W.Render.phaseFx)W.Render.phaseFx(wx,wy);if(W.Render.shake)W.Render.shake(8,0.26);}
+      if(W.Settings)W.Settings.vibrate([16,22,28]);
+      if(W.Sfx)W.Sfx.kill();
+    };
+    W.Game.onBondSuit = function() {
+      showToast('\uD83D\uDC36 \u8001\u76ae\u6230\u8863\u555f\u52d5\uff1a\u4f38\u7e2e\u62f3\u3001\u5f48\u529b\u7ffb\u6efe\u3001\u64cb\u4e00\u6b21\u91cd\u64ca');
+      if(W.Render){W.Render.flash('rgba(255,218,70,0.32)',0.35);W.Render.phaseFx(W.Player.wx,W.Player.wy);}
+      if(W.Sfx)W.Sfx.kill();
+    };
+    W.Game.onBondSuitEnd = function() { showToast('\uD83D\uDC36 \u5408\u9ad4\u7d50\u675f，老皮需要喘口氣'); };
+    W.Game.onBondSuitBlock = function() {
+      showToast('\uD83D\uDEE1\uFE0F \u8001\u76ae\u6230\u8863\u5438\u6536\u4e86\u91cd\u64ca\uff01');
+      if(W.Render){W.Render.flash('rgba(255,238,145,0.32)',0.25);W.Render.shake(7,0.22);}
+    };
+    W.Game.onBondSuitBump = function(hit,wx,wy) {
+      if(W.Render){W.Render.dmgText(wx,wy-18,'-' + (hit&&hit.dmg||20));W.Render.impact(wx,wy,true);}
+    };
+    W.Game.onDuoRealmStart = function(s,plan) {
+      var roomNames={bridge:'橋',spring:'彈簧',key:'開鎖',dark:'黑暗嗅聞',defend:'雙人守點',treasure:'稀有藏寶'};
+      var preview=plan&&plan.length?('：'+plan.map(function(id){return roomNames[id]||id;}).join(' → ')):'';
+      showToast('\uD83D\uDC3E \u8001\u76ae\u55c5\u5230\u9019\u6b21\u7684\u4e09\u9593\u623f' + preview);
+      if(W.Art&&W.Art.prefetch)W.Art.prefetch(['mate_laopi_transform_sheet']);
+    };
+    W.Game.onDuoRealmPhase = function(p) {
+      if(p==='fight')showToast('\u2694\uFE0F \u8001\u76ae\u958b\u597d\u7f3a\u53e3\uff0c\u4e00\u8d77\u64ca\u9000\u79d8\u5883\u5b88\u885b');
+      else if(p==='defend')showToast('🛡️ 老皮正在撐住石門，別讓守衛靠近他！');
+      else if(p==='fight2')showToast('\u2728 \u7e7c\u7e8c\u6df1\u5165\uff01\u6700\u5f8c\u7684\u5171\u9cf4\u5b88\u885b\u51fa\u73fe');
+      else if(p==='choice'){
+        var rs=W.DuoRealm&&W.DuoRealm.state?W.DuoRealm.state():null;
+        var sub=document.getElementById('realm-choice-sub'),deep=document.getElementById('realm-brave-detail');
+        if(sub&&rs)sub.textContent='老皮聞到深處的預兆「'+rs.omen+'」：'+rs.omenDesc;
+        if(deep&&rs)deep.textContent='最後戰鬥 · '+rs.omen+' · 秘境加成 +2';
+        document.getElementById('realm-choice-panel').classList.add('open');
+      }
+    };
+    W.Game.onDuoRealmComplete = function(loot,brave,rare) {
+      document.getElementById('realm-choice-panel').classList.remove('open');
+      showToast(realmLootText(loot,brave,rare));
+      if(W.Render){W.Render.flash(brave?'rgba(208,145,255,0.4)':'rgba(255,220,105,0.32)',0.42);W.Render.phaseFx(W.Player.wx,W.Player.wy);}
+      if(W.Sfx)W.Sfx.kill();
+      W.Save.save();
+    };
+    W.Game.onDuoRealmAbort = function(reason) {
+      document.getElementById('realm-choice-panel').classList.remove('open');
+      showToast(reason||'\u54c7\u585e\u79d8\u5883\u5df2\u91cd\u7f6e');
+    };
+    W.Game.onBondSiteFound = function(s) {
+      showToast('\uD83D\uDC36 \u8001\u76ae\u767c\u73fe\u4e86' + (W.Sites&&W.Sites.NAMES?W.Sites.NAMES[s.type]:'\u79d8\u5883') + '\uff01');
+    };
+    W.Game.onSandwichIngredient = function(label,progress) {
+      showToast('🥪 找到「'+label+'」！終極三明治材料 '+progress+'/4');
+      W.Save.save();
+    };
+    W.Game.onSandwichReady = function() {
+      document.getElementById('sandwich-choice-panel').classList.add('open');
+    };
+    W.Game.onSandwichBoon = function(kind) {
+      var labels={guard:'守護能量立刻充滿',suit:'下一次老皮戰衣延長兩秒',rescue:'今天第一次倒地由三明治救援',realm:'下一座秘境必定出現稀有房間'};
+      showToast('🥪 '+(labels[kind]||'終極三明治完成'));
+    };
+    W.Game.onSharedMeal = function(food) {
+      showToast('🐶 你和老皮分著吃'+food+'，守護能量與心情都恢復了');
+      W.Save.save();
+    };
+    W.Game.onBondChapter = function(name,line) {
+      showToast('🐶 羈絆章節：「'+name+'」 · '+line);
+      W.Save.save();
+    };
+    W.Game.onWildTransform = function(kind) {
+      var lines={ride:'🐶 老皮變成彈力座騎，長途移動暫時加快',shelter:'🐶 老皮撐成臨時庇護所，黑夜中的理智稍微恢復',pull:'🐶 老皮把你從攻擊方向拉開了！'};
+      if(lines[kind])showToast(lines[kind]);
     };
     W.Game.onBondBlock = function() {
       showToast('\uD83D\uDC36 \u8001\u76ae\u4f38\u9577\u8eab\u9ad4\u64cb\u4f4f\u4e86\u653b\u64ca\uff01');
@@ -1724,6 +1934,14 @@ W.Game = (function() {
       if (W.Sfx) W.Sfx.hurt();
       W.Save.save();
     };
+    W.Game.onCalamityRetreat = function() {
+      showToast('\uD83D\uDEE1\uFE0F \u5df2\u96e2\u958b\u707d\u798d\u6230\u5834\uff0c\u6b98\u7559\u653b\u64ca\u5df2\u6e05\u9664');
+      if(W.BondMate)W.BondMate.noteEvent('retreat');
+    };
+    W.Game.onCalamityReengage = function(b) {
+      showToast('\u26a0\uFE0F ' + b.name + ' \u91cd\u65b0\u9396\u5b9a\uff0c2 \u79d2\u5f8c\u6062\u5fa9\u653b\u52e2');
+      if(W.BondMate)W.BondMate.noteEvent('danger');
+    };
     W.Game.onCalamityDown = function(b) {
       if(W.BondMate)W.BondMate.noteBossDown(true);
       showToast(b&&b.id==='titan'?'🏆 擊敗骸骨泰坦！兩大災禍已平息':'🏆 擊敗萬眼巨鯤！祭壇出現更強大的氣息');
@@ -1737,6 +1955,10 @@ W.Game = (function() {
       if(W.Render&&W.Render.phaseFx)W.Render.phaseFx(b.wx,b.wy);
       if(W.Render&&W.Render.flash)W.Render.flash('rgba(155,70,215,0.32)',0.28);
       if(W.Sfx)W.Sfx.hurt();
+    };
+    W.Game.onPlayerDefeated = function() {
+      if(W.Calamity&&W.Calamity.onPlayerDefeated)W.Calamity.onPlayerDefeated();
+      showToast('\uD83D\uDC36 \u8001\u76ae\u6b63\u5728\u5e36\u4f60\u56de\u7d00\u9304\u9ede\u2026');
     };
     W.Game.onAscensionReward = function(r) {
       showToast('💠 飛升輪迴 '+r.cycle+' 完成！神格碎片 +1（神武與 Skin 永久強化）');

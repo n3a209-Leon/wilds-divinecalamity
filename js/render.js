@@ -181,8 +181,8 @@ W.Render = (function() {
 
   var NODE_ART      = ['tree', 'rock', 'grass', 'berry', '', 'ui/mushroom'];
   var NODE_ART_DEAD = ['tree_cut', 'rock_mined', 'grass_cut', 'berry_empty', '', ''];
-  var MOB_ART       = ['deer', 'rabbit', 'wolf', '', 'boar', 'bear', 'crow'];
-  var MOB_ART_MOVE  = ['deer_walk', 'rabbit_hop', 'wolf_run', '', 'boar_run', 'bear_walk', 'crow_fly'];
+  var MOB_ART       = ['deer', 'rabbit', 'wolf', '', 'boar', 'bear', 'crow', 'fox', 'goat', 'badger'];
+  var MOB_ART_MOVE  = ['deer_walk', 'rabbit_hop', 'wolf_run', '', 'boar_run', 'bear_walk', 'crow_fly', 'fox_run', 'goat_charge', 'badger_run'];
   var artT = 0;
   var BOSS_ZONE_STYLE = {
     poison: ['rgba(104,45,130,0.28)', 'rgba(177,93,220,0.72)'],
@@ -203,6 +203,8 @@ W.Render = (function() {
   function drawArt(img, sx, sy, hWorld, flip) {
     /* 素材遺失或尚未載入時安全略過，避免 img.width 造成整局白畫面。 */
     if (!img) return;
+    hWorld = Number(hWorld);
+    if (!isFinite(hWorld) || hWorld <= 0) hWorld = 44;
     var h = hWorld * W.Camera.zoom;
     var w = h * (img.width / img.height);
     if (flip) {
@@ -608,12 +610,28 @@ W.Render = (function() {
 
   function drawBondMate() {
     if (!W.BondMate || !W.BondMate.mate) return;
-    var m = W.BondMate.mate(), z = W.Camera.zoom, sheet, frameNo, r, pct;
+    var m = W.BondMate.mate(), z = W.Camera.zoom, sheet, frameNo, r, pct, ts;
     if (!m || !m.recruited) return;
+    if (W.BondMate.suitActive && W.BondMate.suitActive()) return;
     W.Camera.worldToScreenInto(m.wx, m.wy, _p);
     if (_p.sx < -100 || _p.sx > W.Camera.vw + 100 || _p.sy < -100 || _p.sy > W.Camera.vh + 100) return;
     r = 14 * z;
     ctx.fillStyle = 'rgba(0,0,0,0.28)';ctx.beginPath();ctx.ellipse(_p.sx,_p.sy+r*.62,r*1.05,r*.38,0,0,Math.PI*2);ctx.fill();
+    ts = W.BondMate.transformState ? W.BondMate.transformState() : null;
+    if (ts && ts.time > 0) {
+      sheet = W.Art.get('mate_laopi_transform_sheet');
+      if (ts.kind === 'shelter') {
+        ctx.save(); ctx.translate(_p.sx,_p.sy-11*z);
+        ctx.fillStyle='rgba(244,202,25,.92)';ctx.strokeStyle='#2c2417';ctx.lineWidth=3*z;
+        ctx.beginPath();ctx.ellipse(0,0,48*z,27*z,-.08,Math.PI,Math.PI*2);ctx.lineTo(48*z,16*z);ctx.lineTo(-48*z,16*z);ctx.closePath();ctx.fill();ctx.stroke();
+        ctx.fillStyle='rgba(255,242,160,.32)';ctx.beginPath();ctx.ellipse(-10*z,-5*z,25*z,10*z,-.2,Math.PI,Math.PI*2);ctx.fill();ctx.restore();
+      } else {
+        frameNo = ts.kind === 'bridge' ? 1 : ((ts.kind === 'spring' || ts.kind === 'ride') ? 2 : 0);
+        if (sheet) drawArtFrame(sheet,frameNo,4,_p.sx,_p.sy+r*.62,105,m.faceX<0,m.bob,0,0);
+        else drawBondMateFallback(m,_p.sx,_p.sy+r*.62,z);
+      }
+      return;
+    }
     sheet = W.Art.get('mate_laopi_sheet');
     frameNo = (m.blockT > 0 || m.actionT > 0) ? 2 : (m.moving ? 1 : 0);
     if (sheet) drawArtFrame(sheet,frameNo,3,_p.sx,_p.sy+r*.62,70,m.faceX<0,m.bob,m.lean,m.moving?Math.sin(m.animT):0);
@@ -626,6 +644,18 @@ W.Render = (function() {
       pct = Math.max(0,Math.min(1,m.blockT/.62));
       ctx.save();ctx.globalAlpha=.25+.5*pct;ctx.strokeStyle='#fff1a0';ctx.lineWidth=5*z;ctx.beginPath();ctx.ellipse(_p.sx,_p.sy-13*z,40*z,34*z,-.18,0,Math.PI*2);ctx.stroke();
       ctx.strokeStyle='#f6b928';ctx.lineWidth=2*z;ctx.beginPath();ctx.ellipse(_p.sx,_p.sy-13*z,46*z,38*z,-.18,0,Math.PI*2);ctx.stroke();ctx.restore();
+    }
+  }
+
+  function drawBondSuit() {
+    if (!W.BondMate || !W.BondMate.suitActive || !W.BondMate.suitActive()) return;
+    W.Camera.worldToScreenInto(W.Player.wx,W.Player.wy,_p);
+    var z=W.Camera.zoom,sheet=W.Art.get('mate_laopi_transform_sheet'),pulse=1+Math.sin(artT*8)*.025;
+    ctx.save();ctx.globalAlpha=.92;ctx.strokeStyle='rgba(255,229,102,.78)';ctx.lineWidth=3*z;
+    ctx.beginPath();ctx.ellipse(_p.sx,_p.sy+8*z,31*z*pulse,18*z*pulse,0,0,Math.PI*2);ctx.stroke();ctx.restore();
+    if(sheet)drawArtFrame(sheet,3,4,_p.sx,_p.sy+14*z,112,W.Player.faceX<0,Math.sin(artT*7)*.7,0,W.Player.moving?Math.sin(artT*10):0);
+    else{
+      ctx.save();ctx.strokeStyle='#ffe36b';ctx.lineWidth=7*z;ctx.beginPath();ctx.ellipse(_p.sx,_p.sy-21*z,25*z,34*z,0,0,Math.PI*2);ctx.stroke();ctx.restore();
     }
   }
 
@@ -833,6 +863,16 @@ W.Render = (function() {
   function drawCalamityBattle() {
     if (!W.Calamity) return;
     var z = W.Camera.zoom, b = W.Calamity.boss ? W.Calamity.boss() : null;
+    var cst = W.Calamity.stats ? W.Calamity.stats() : null;
+    if (b && b.alive && cst && cst.arenaRadius) {
+      var altar = W.Calamity.altarPos();
+      W.Camera.worldToScreenInto(altar.wx, altar.wy, _p);
+      ctx.save();
+      ctx.strokeStyle = cst.engaged ? 'rgba(218,135,255,0.52)' : 'rgba(255,210,110,0.38)';
+      ctx.lineWidth = 3 * z; ctx.setLineDash([14*z,10*z]);
+      ctx.beginPath();ctx.arc(_p.sx,_p.sy,cst.arenaRadius*z,0,Math.PI*2);ctx.stroke();
+      ctx.setLineDash([]);ctx.restore();
+    }
 
     if (W.Calamity.eachVoid) W.Calamity.eachVoid(function(v) {
       W.Camera.worldToScreenInto(v.wx, v.wy, _p);
@@ -913,8 +953,9 @@ W.Render = (function() {
     ctx.fillStyle=b.id==='titan'?'#b59b75':'#b45de0';ctx.fillRect(sx-bw/2+2,sy-r*.9+2,(bw-4)*ratio,bh-4);
     ctx.strokeStyle='rgba(255,255,255,0.7)';ctx.lineWidth=1;ctx.strokeRect(sx-bw/2,sy-r*.9,bw,bh);
     ctx.font='bold '+Math.round(13*z)+'px -apple-system, sans-serif';ctx.textAlign='center';ctx.fillStyle='#f4ddff';
-    var cs2=W.Calamity.stats?W.Calamity.stats():null;
+    var cs2=cst;
     ctx.fillText((cs2&&cs2.activeAscended?'飛升災禍 Lv.'+(cs2.ascensionCycle+1)+'・':'世界災禍・')+b.name+'  Phase '+b.phase,sx,sy-r*1.04);
+    if(cs2&&cs2.grace>0){ctx.font='bold '+Math.round(11*z)+'px -apple-system, sans-serif';ctx.fillStyle='#ffe6a3';ctx.fillText('安全前搖 '+cs2.grace.toFixed(1)+'s',sx,sy-r*.68);}
   }
 
   function drawSkinAura() {
@@ -1267,12 +1308,25 @@ W.Render = (function() {
       return;
     }
 
-    var moving = (m.vx * m.vx + m.vy * m.vy) > 0.02;
+    var moving = (m.vx * m.vx + m.vy * m.vy) > 0.02 || m.chargeT > 0;
     var img = W.Art.get(moving && (Math.floor(artT * W.CFG.MOB_ANIM_FPS + m.seed) % 2 === 1)
       ? MOB_ART_MOVE[ty] : MOB_ART[ty]);
 
+    /* 山羊衝撞前的公平預警：不依賴素材，即使圖片失敗仍看得到。 */
+    if (ty === 8 && m.windupT > 0) {
+      var wk = 1 - Math.min(1, m.windupT / 0.44);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,190,70,' + (0.65 + wk * 0.3) + ')';
+      ctx.lineWidth = (2 + wk * 2) * z;
+      ctx.beginPath(); ctx.arc(sx, sy - 9 * z, (20 + wk * 10) * z, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#ffe08a'; ctx.font = 'bold ' + Math.round(17 * z) + 'px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom'; ctx.fillText('!', sx, sy - 42 * z);
+      ctx.restore();
+    }
+
     if (img) {
-      shadow(sx, sy + 4 * z, 11 * z, 4 * z);
+      var sr = Math.max(8, W.Mobs.radius(ty));
+      shadow(sx, sy + 4 * z, sr * 0.9 * z, Math.max(4, sr * 0.32) * z);
       drawArt(img, sx, sy + 5 * z, W.CFG.ART_MOB_H[ty], m.vx < -0.05);
       if (m.hurt > 2.6) {
         ctx.fillStyle = 'rgba(230,80,60,0.35)';
@@ -1291,7 +1345,13 @@ W.Render = (function() {
 
     if (ty === 0)      { body = '#9a6b3c'; head = '#7d5530'; r = 12; }
     else if (ty === 1) { body = '#cfc4b0'; head = '#b0a48f'; r = 8; }
-    else               { body = '#5b5f66'; head = '#43474d'; r = 12; }
+    else if (ty === 2) { body = '#5b5f66'; head = '#43474d'; r = 12; }
+    else if (ty === 4) { body = '#70452b'; head = '#4d3022'; r = 13; }
+    else if (ty === 5) { body = '#5b402c'; head = '#3e2d22'; r = 18; }
+    else if (ty === 6) { body = '#252936'; head = '#11151d'; r = 7; }
+    else if (ty === 7) { body = '#d96622'; head = '#f08032'; r = 10; }
+    else if (ty === 8) { body = '#8b6747'; head = '#705037'; r = 14; }
+    else               { body = '#3a332f'; head = '#e0c99d'; r = 15; }
 
     if (m.hurt > 2.6) { body = '#e8735f'; }
 
@@ -1305,7 +1365,7 @@ W.Render = (function() {
     ctx.arc(sx + m.vx * r * 0.8, sy - 5 + m.vy * r * 0.5, r * 0.52, 0, Math.PI * 2);
     ctx.fill();
 
-    if (ty === 2) {
+    if (ty === 2 || ty === 7 || ty === 8 || ty === 9) {
       ctx.fillStyle = '#ffd76a';
       ctx.fillRect(sx + m.vx * r * 0.9 - 2, sy - 7 + m.vy * r * 0.5, 2, 2);
       ctx.fillRect(sx + m.vx * r * 0.9 + 1, sy - 7 + m.vy * r * 0.5, 2, 2);
@@ -1322,7 +1382,8 @@ W.Render = (function() {
       if (!m.alive) continue;
       if (before ? (m.wy >= py) : (m.wy < py)) continue;
       W.Camera.worldToScreenInto(m.wx, m.wy, _p);
-      if (_p.sx < -40 || _p.sy < -40 || _p.sx > C.vw + 40 || _p.sy > C.vh + 40) continue;
+      /* 寬幅奔跑姿勢要等整隻離開後才剔除，避免畫面邊緣突然跳出／消失。 */
+      if (_p.sx < -110 || _p.sy < -110 || _p.sx > C.vw + 110 || _p.sy > C.vh + 110) continue;
       drawOneMob(m, _p.sx, _p.sy);
     }
   }
@@ -1752,6 +1813,7 @@ W.Render = (function() {
     drawTarget(dt);
     drawPlaceGhost();
     drawSites(true);
+    if(W.DuoRealm&&W.DuoRealm.draw)W.DuoRealm.draw(ctx);
     drawBuilds(true);
     drawNodes(true);
     drawMobs(true);
@@ -1765,6 +1827,7 @@ W.Render = (function() {
     drawEquipmentBack();
     drawHonorTrail();
     drawPlayer(dt);
+    drawBondSuit();
     drawEquipmentFront();
     drawHonorCrown();
     drawDivineShield();
@@ -1774,6 +1837,7 @@ W.Render = (function() {
     drawFeedbackFx();
     drawCarryGhost();
     drawDmg(dt);
+    if(W.DuoRealm&&W.DuoRealm.drawOverlay)W.DuoRealm.drawOverlay(ctx);
     drawMobs(false);
     drawNodes(false);
     drawBuilds(false);

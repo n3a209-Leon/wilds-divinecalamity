@@ -20,7 +20,9 @@ W.CFG = {
   ART_DIR: 'assets/',
   ART_NODE_H:      [66, 44, 32, 36, 0, 26],
   ART_NODE_DEAD_H: [30, 30, 20, 32, 0, 0],
-  ART_MOB_H:       [46, 28, 44],
+  /* 必須與 mobs.js 的 TYPE 索引一一對齊；陰影(type 3)使用向量繪製，故為 0。
+     v54 只填前三格，造成野豬／熊／烏鴉取得 undefined 而無法畫出。 */
+  ART_MOB_H:       [46, 28, 44, 0, 48, 58, 38, 42, 50, 46],
   ART_FIRE_H: 46,
   ART_FURNACE_H: 52,
   ART_BENCH_H: 46,
@@ -98,6 +100,15 @@ W.CFG = {
   BEAR_DMG: 14,
   BEAR_AGGRO: 190,
   CROW_FLEE: 200,
+  FOX_DMG: 7,
+  FOX_AGGRO: 250,
+  FOX_HIT_RANGE: 34,
+  FOX_HIT_CD: 1.85,
+  GOAT_DMG: 12,
+  GOAT_AGGRO: 175,
+  GOAT_CHARGE_TIME: 0.68,
+  BADGER_DMG: 11,
+  BADGER_AGGRO: 250,
 
   MOB_MAX: 14,
   MOB_SPAWN_INTERVAL: 1.4,

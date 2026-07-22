@@ -6,7 +6,7 @@ window.W = window.W || {};
 W.Sites = (function() {
 
   var TYPE = { RUIN: 0, CAVE: 1 };
-  var NAMES = ['\u5ee2\u589f', '\u6d1e\u7a74'];
+  var NAMES = ['\u5ee2\u589f\u79d8\u5883', '\u6d1e\u7a74\u79d8\u5883'];
 
   var cache = {};
   var cacheKeys = [];
@@ -57,7 +57,7 @@ W.Sites = (function() {
   }
 
   /* 戰利品固定由遺跡座標決定，同一座遺跡永遠給同樣的東西 */
-  function loot(s) {
+  function loot(s, trialBonus) {
     if (!s || isLooted(s)) return null;
     looted[s.k] = 1;
     lootedCount++;
@@ -65,12 +65,33 @@ W.Sites = (function() {
     var h1 = W.Rng.hash2i(s.seed, 11, W.CFG.SEED + 811);
     var h2 = W.Rng.hash2i(s.seed, 29, W.CFG.SEED + 812);
     var isCave = (s.type === TYPE.CAVE);
+    var bond = W.BondMate && W.BondMate.prepareSiteLoot ? W.BondMate.prepareSiteLoot(s) : 0;
+    trialBonus = Math.max(0, Math.min(4, Math.floor(Number(trialBonus) || 0)));
 
     var metal = isCave ? (1 + Math.floor(h1 * 3)) : Math.floor(h1 * 2);
     var flint = isCave ? (2 + Math.floor(h2 * 3)) : (1 + Math.floor(h2 * 2));
     var arrow = Math.floor(h2 * 6);
     var hide  = isCave ? 0 : (1 + Math.floor(h1 * 3));
     var cooked = isCave ? 0 : Math.floor(h2 * 2);
+
+    /* 戰鬥累積的老皮連攜會提高秘境搜刮；搜刮後則開啟 45 秒共鳴，回饋下一場戰鬥。 */
+    if (bond > 0) {
+      if (isCave) {
+        flint += bond;
+        if (bond >= 2) metal += 1;
+      } else {
+        arrow += bond * 2;
+        cooked += 1;
+        if (bond >= 3) hide += 1;
+      }
+    }
+    if (trialBonus > 0) {
+      metal += trialBonus;
+      flint += trialBonus * 2;
+      arrow += trialBonus * 3;
+      if (!isCave) hide += trialBonus;
+      if (trialBonus >= 2) cooked += 2;
+    }
 
     if (metal > 0) W.Inv.add('metal', metal);
     if (flint > 0) W.Inv.add('flint', flint);
@@ -84,10 +105,13 @@ W.Sites = (function() {
     _res.arrow = arrow;
     _res.hide = hide;
     _res.cooked = cooked;
+    _res.bond = bond;
+    _res.echo = bond ? 45 : 0;
+    _res.trial = trialBonus;
     return _res;
   }
 
-  var _res = { name: '', metal: 0, flint: 0, arrow: 0, hide: 0, cooked: 0 };
+  var _res = { name: '', metal: 0, flint: 0, arrow: 0, hide: 0, cooked: 0, bond: 0, echo: 0, trial: 0 };
 
   /* 每幀更新一次的鄰近遺跡清單，使用預先配置的陣列 */
   function updateNear(wx, wy) {

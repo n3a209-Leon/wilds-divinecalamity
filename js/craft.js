@@ -26,13 +26,19 @@ W.Craft = (function() {
     { id: 'maxe',  name: '\u91d1\u5c6c\u65a7', icon: '\uD83E\uDE93', kind: 'tool', cost: { metal: 2, wood: 2 }, needGear: 'axe', need: 4, desc: '\u4f10\u6728\uff0b4\uff0c\u653b\u64ca\uff0b14\uff08\u9700\u5148\u6709\u77f3\u65a7\uff09' },
     { id: 'mpick', name: '\u91d1\u5c6c\u93ac', icon: '\u26CF\uFE0F', kind: 'tool', cost: { metal: 2, wood: 2 }, needGear: 'pick', need: 4, desc: '\u63a1\u77f3\uff0b4\uff08\u9700\u5148\u6709\u77f3\u93ac\uff09' },
     { id: 'soup',  name: '\u8611\u83c7\u6e6f', icon: '\uD83C\uDF72', kind: 'item', give: { soup: 1 }, cost: { mushroom: 2, berry: 1 }, need: 0, desc: '\u9700\u8981\u71df\u706b\uff1b\u5403\u4e86\u5927\u5e45\u56de\u5fa9' },
+    { id: 'sandwich', name: '\u7d42\u6975\u4e09\u660e\u6cbb', icon: '\uD83E\uDD6A', kind: 'special', cost: { cooked: 1, jerky: 1, berry: 2 }, need: 0, desc: '\u8207\u8001\u76ae\u4e00\u8d77\u5b8c\u6210\u7684\u9577\u671f\u6599\u7406\u4efb\u52d9' },
     { id: 'cook', name: '\u70e4\u8089',   icon: '\uD83C\uDF57', kind: 'item',  give: { cooked: 1 }, cost: { meat: 1 }, need: 0, desc: '\u9700\u8981\u7ad9\u5728\u71df\u706b\u65c1' }
   ];
 
-  function list() { return RECIPES; }
+  function list() {
+    var r = byId('sandwich');
+    if (r && W.LaopiLife && W.LaopiLife.recipeText) r.desc = W.LaopiLife.recipeText();
+    return RECIPES;
+  }
 
   function canAfford(r) {
     var k;
+    if (r && r.id === 'sandwich' && W.LaopiLife && !W.LaopiLife.canMakeSandwich()) return false;
     for (k in r.cost) {
       if (!r.cost.hasOwnProperty(k)) continue;
       if (W.Inv.count(k) < r.cost[k]) return false;
@@ -68,6 +74,10 @@ W.Craft = (function() {
   function make(id) {
     var r = byId(id);
     if (!r) return '\u627e\u4e0d\u5230\u914d\u65b9';
+    if (r.id === 'sandwich' && W.LaopiLife) {
+      var sandwichReason = W.LaopiLife.sandwichReason();
+      if (sandwichReason) return sandwichReason;
+    }
     if (!canAfford(r)) return '\u6750\u6599\u4e0d\u8db3';
 
     if (r.need !== undefined && r.need !== null) {
@@ -107,7 +117,13 @@ W.Craft = (function() {
         if (!r.give.hasOwnProperty(k)) continue;
         W.Inv.add(k, r.give[k]);
       }
+      if (W.LaopiLife && W.LaopiLife.noteCook) W.LaopiLife.noteCook(r.id);
       return true;
+    }
+
+    if (r.kind === 'special' && r.id === 'sandwich' && W.LaopiLife) {
+      pay(r);
+      return W.LaopiLife.makeSandwich();
     }
 
     return '\u672a\u77e5\u914d\u65b9\u985e\u578b';

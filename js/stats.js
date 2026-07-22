@@ -94,10 +94,10 @@ W.Stats = (function() {
 
   function handleLethal() {
     var pct=W.Skins&&W.Skins.tryPhoenixRevive?W.Skins.tryPhoenixRevive():0;
-    if(pct>0){hp=hpMax*pct;food=Math.max(food,foodMax*.25);stam=stamMax;dead=false;hurtT=0;invT=1.6;return true;}
+    if(pct>0){hp=hpMax*pct;food=Math.max(food,foodMax*.25);stam=stamMax;dead=false;hurtT=0;invT=2;if(W.Calamity&&W.Calamity.onPlayerRescued)W.Calamity.onPlayerRescued();return true;}
     pct=W.BondMate&&W.BondMate.tryRescue?W.BondMate.tryRescue():0;
-    if(pct>0){hp=hpMax*pct;food=Math.max(food,foodMax*.2);stam=Math.max(stam,stamMax*.35);dead=false;hurtT=0;invT=1.2;if(W.Game&&W.Game.onBondRescue)W.Game.onBondRescue(W.BondMate.lastRescueFood());return true;}
-    hp=0;dead=true;return false;
+    if(pct>0){hp=hpMax*pct;food=Math.max(food,foodMax*.2);stam=Math.max(stam,stamMax*.35);dead=false;hurtT=0;invT=2.2;if(W.Calamity&&W.Calamity.onPlayerRescued)W.Calamity.onPlayerRescued();if(W.Game&&W.Game.onBondRescue)W.Game.onBondRescue(W.BondMate.lastRescueFood());return true;}
+    hp=0;dead=true;if(W.Game&&W.Game.onPlayerDefeated)W.Game.onPlayerDefeated();return false;
   }
 
   function spend(n) {
@@ -119,14 +119,14 @@ W.Stats = (function() {
     if (hp <= 0) handleLethal();
   }
 
-  function revive() {
+  function revive(safeSeconds) {
     san = sanMax * 0.6;
     hp = hpMax * 0.5;
     food = foodMax * 0.4;
     stam = stamMax;
     dead = false;
     hurtT = 0;
-    invT = 0;
+    invT = Math.max(2.8, Number(safeSeconds) || 0);
   }
 
   function exportData() {

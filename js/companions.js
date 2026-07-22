@@ -85,6 +85,7 @@ W.Mates = (function() {
     var i, e, dx, dy, d2;
     for (i = 0; i < W.Mobs.count(); i++) {
       e = W.Mobs.at(i); if (!e || !e.alive) continue;
+      if (W.Mobs.isHostile && !W.Mobs.isHostile(e)) continue;
       dx = e.wx - m.wx; dy = e.wy - m.wy; d2 = dx * dx + dy * dy;
       if (d2 < best) { best = d2; kind = 'mob'; obj = e; wx = e.wx; wy = e.wy; }
     }

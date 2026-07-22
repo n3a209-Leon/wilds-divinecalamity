@@ -11,7 +11,7 @@ W.Save = (function() {
   var KEY = 'save';
   var BACKUP_1 = 'save_backup_1';
   var BACKUP_2 = 'save_backup_2';
-  var VERSION = 20;
+  var VERSION = 22;
 
   var db = null;
   var ok = false;
@@ -178,6 +178,7 @@ W.Save = (function() {
       store: W.Store.exportData(),
       mates: W.Mates.exportData(),
       bondMate: W.BondMate ? W.BondMate.exportData() : {},
+      laopiLife: W.LaopiLife ? W.LaopiLife.exportData() : {},
       bosses: W.Bosses.exportData(),
       divineArms: W.DivineArms.exportData(),
       calamity: W.Calamity.exportData(),
@@ -193,6 +194,7 @@ W.Save = (function() {
     if (!data) return false;
     data = migrate(data);
     if (!data) return false;
+    if (W.DuoRealm) W.DuoRealm.clear();
 
     var p = data.player;
     if (p && isFinite(p.wx) && isFinite(p.wy)) {
@@ -218,6 +220,7 @@ W.Save = (function() {
     if (W.Rewards) W.Rewards.importData(data.rewards);
     W.Mates.importData(data.mates);
     if (W.BondMate) W.BondMate.importData(data.bondMate);
+    if (W.LaopiLife) W.LaopiLife.importData(data.laopiLife);
     W.Store.importData(data.store);
     lastOverflow = W.Store.absorbOverflow();
     if (data.home && isFinite(data.home.wx) && isFinite(data.home.wy)) {
@@ -392,6 +395,29 @@ W.Save = (function() {
       v = 20;
     }
 
+    if (v === 20) {
+      /* v20 已有老皮記憶；v21 新增哇塞秘境與戰衣共同紀錄。 */
+      if (!data.bondMate || typeof data.bondMate !== 'object') data.bondMate = {};
+      if (typeof data.bondMate.realms !== 'number') data.bondMate.realms = 0;
+      if (typeof data.bondMate.braveRealms !== 'number') data.bondMate.braveRealms = 0;
+      if (typeof data.bondMate.suitUses !== 'number') data.bondMate.suitUses = 0;
+      data.v = 21;
+      v = 21;
+    }
+
+    if (v === 21) {
+      /* v21 已有雙人秘境與戰衣；v22 新增終極三明治、行為羈絆與荒野變形記憶。 */
+      if (!data.laopiLife || typeof data.laopiLife !== 'object') data.laopiLife = {
+        ingredients: 0, cookActions: 0, nightGatherActions: 0,
+        sandwichesMade: 0, lastSandwichDay: -1, boon: '', boonDay: -1, boonUsed: true,
+        brave: 0, guardian: 0, sharing: 0, agile: 0, style: '',
+        sharedMeals: 0, lastShareDay: -1, campMemories: 0, lastCampDay: -1,
+        rareRooms: 0, wildTransforms: 0, dangerPulls: 0
+      };
+      data.v = 22;
+      v = 22;
+    }
+
     /* 種子不同代表是另一個世界，座標與採集狀態不可沿用，只保留背包 */
     if (data.seed !== W.CFG.SEED) {
       data.player = null;
@@ -402,6 +428,7 @@ W.Save = (function() {
       data.store = {};
       data.mates = {};
       data.bondMate = {};
+      data.laopiLife = {};
       data.bosses = {};
       data.divineArms = {};
       data.calamity = {};
@@ -483,6 +510,7 @@ W.Save = (function() {
     W.Build.clear();
     W.Time.clear();
     W.Sites.clear();
+    if (W.DuoRealm) W.DuoRealm.clear();
     W.Store.clear();
     W.Bosses.clear();
     W.DivineArms.clear();
@@ -491,6 +519,7 @@ W.Save = (function() {
     if (W.Rewards) W.Rewards.clear();
     W.Mates.clear();
     if (W.BondMate) W.BondMate.clear();
+    if (W.LaopiLife) W.LaopiLife.clear();
     lastSaved = 0;
     lastRecovery = '';
     return Promise.all([remove(), removeAt(BACKUP_1), removeAt(BACKUP_2)]).then(function() { return true; });

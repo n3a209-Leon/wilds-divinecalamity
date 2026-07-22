@@ -10,13 +10,14 @@ W.Art = (function() {
     'grass', 'grass_cut', 'berry', 'berry_empty',
     'deer', 'deer_walk', 'rabbit', 'rabbit_hop', 'wolf', 'wolf_run',
     'boar', 'boar_run', 'bear', 'bear_walk', 'crow', 'crow_fly',
+    'fox', 'fox_run', 'goat', 'goat_charge', 'badger', 'badger_run',
     'campfire', 'bed', 'workbench',
     'wall', 'chest', 'chest_open', 'ruin', 'cave', 'crate', 'fence', 'rack',
     'campfire_out', 'cage', 'cage_broken',
     'mate_knight', 'mate_knight_walk', 'mate_archer', 'mate_archer_walk',
     'mate_cat', 'mate_cat_walk', 'mate_sprite', 'mate_sprite_walk',
     'mate_knight_sheet', 'mate_archer_sheet', 'mate_cat_sheet', 'mate_sprite_sheet',
-    'mate_laopi_sheet',
+    'mate_laopi_sheet', 'mate_laopi_transform_sheet',
     'boss_troll', 'boss_troll_atk', 'boss_shade', 'boss_shade_atk',
     'boss_hydra', 'boss_hydra_atk', 'boss_dragon', 'boss_dragon_atk',
     'boss_colossus', 'boss_colossus_atk', 'boss_eagle', 'boss_eagle_atk',
@@ -44,8 +45,11 @@ W.Art = (function() {
   var failedNames = [];
   var started = false;
   var PRELOAD = [
-    'tree','rock','grass','berry','deer','rabbit','wolf',
-    'campfire','bed','workbench','wall','chest','fx_hit','fx_dodge','fx_warning','mate_laopi_sheet'
+    'tree','rock','grass','berry',
+    'deer','deer_walk','rabbit','rabbit_hop','wolf','wolf_run',
+    'boar','boar_run','bear','bear_walk','crow','crow_fly',
+    'fox','fox_run','goat','goat_charge','badger','badger_run',
+    'campfire','bed','workbench','wall','chest','fx_hit','fx_dodge','fx_warning','mate_laopi_sheet','mate_laopi_transform_sheet'
   ];
   var ki;
   for (ki = 0; ki < NAMES.length; ki++) known[NAMES[ki]] = true;
