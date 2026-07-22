@@ -70,16 +70,47 @@
   <div id="journal-track-text">正在整理下一個目標…</div>
 </div>
 
+<div id="realm-status" aria-live="polite">
+  <div id="realm-status-title">🐾 哇塞秘境</div>
+  <div id="realm-status-text">老皮正在尋找路線…</div>
+</div>
+
 <div id="toast"></div>
 
 <div id="joy-base"><div id="joy-knob"></div></div>
 
 <div id="actions">
+  <button class="act-btn bond-btn" id="btn-bond" aria-label="老皮連攜技" title="短按夾擊，長按合體">🤝<span id="bond-hold-label">短按/長按</span></button>
   <button class="act-btn roll-btn" id="btn-roll" aria-label="翻滾閃避" title="翻滾閃避">💨<span id="roll-cooldown"></span></button>
   <button class="act-btn" id="btn-a" aria-label="攻擊或採集">👊</button>
   <button class="act-btn" id="btn-b" aria-label="開啟小地圖">🗺️</button>
   <button class="act-btn" id="btn-d" aria-label="開啟製作">🔨</button>
   <button class="act-btn" id="btn-c" aria-label="開啟背包">🎒</button>
+</div>
+
+<div id="realm-choice-panel" class="loadout-panel" role="dialog" aria-modal="true" aria-labelledby="realm-choice-title">
+  <div class="realm-choice-card">
+    <div class="loadout-head" id="realm-choice-title">🐶 老皮找到了隱藏寶藏</div>
+    <div class="loadout-sub" id="realm-choice-sub">現在可以安全帶走獲得的東西；繼續深入會出現更強守衛，但老皮會找到額外獵物。</div>
+    <div class="realm-choice-row">
+      <button id="realm-safe">🎒 安全離開<small>保留戰利品 · 秘境加成 +1</small></button>
+      <button id="realm-brave">✨ 繼續深入<small id="realm-brave-detail">最後戰鬥 · 秘境加成 +2</small></button>
+    </div>
+  </div>
+</div>
+
+<div id="sandwich-choice-panel" class="loadout-panel" role="dialog" aria-modal="true" aria-labelledby="sandwich-choice-title">
+  <div class="sandwich-choice-card">
+    <img src="assets/ui/sandwich.png" alt="" class="sandwich-hero">
+    <div class="loadout-head" id="sandwich-choice-title">🥪 終極三明治完成</div>
+    <div class="loadout-sub">老皮堅持今天只能做一次。選擇你們要把這頓大餐留給哪一段冒險。</div>
+    <div class="sandwich-choice-grid">
+      <button id="sandwich-guard">🛡️ 守護充滿<small>立刻補滿老皮守護能量</small></button>
+      <button id="sandwich-suit">🐶 戰衣延長<small>下一次合體增加 2 秒</small></button>
+      <button id="sandwich-rescue">❤️ 倒地救援<small>今天第一次倒地由三明治救回</small></button>
+      <button id="sandwich-realm">✨ 稀有秘境<small>下一座秘境必有稀有房間</small></button>
+    </div>
+  </div>
 </div>
 
 <div id="bag-panel">
@@ -90,6 +121,7 @@
     <button class="diag-btn" id="btn-eat-cooked">吃烤肉</button>
     <button class="diag-btn" id="btn-eat-soup">喝蘑菇湯</button>
     <button class="diag-btn" id="btn-eat-jerky">吃肉乾</button>
+    <button class="diag-btn" id="btn-share-laopi">和老皮分享</button>
     <button class="diag-btn" id="btn-char">切換角色</button>
   </div>
   <button id="bag-close">關閉</button>
@@ -264,11 +296,13 @@ window.addEventListener('error', function(e) {
 <script src="js/rewards.js"></script>
 <script src="js/craft.js"></script>
 <script src="js/time.js"></script>
+<script src="js/laopi-life.js"></script>
 <script src="js/cloud.js"></script>
 <script src="js/art.js"></script>
 <script src="js/camera.js"></script>
 <script src="js/input.js"></script>
 <script src="js/player.js"></script>
+<script src="js/duo-realm.js"></script>
 <script src="js/render.js"></script>
 <script src="js/main.js"></script>
 </body>

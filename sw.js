@@ -1,4 +1,4 @@
-var CACHE_VERSION = 'wilds-v51-compact-ui';
+var CACHE_VERSION = 'wilds-v55-wild-ecology';
 
 /* CORE：缺一不可；其餘素材逐筆快取，單一檔案 404 不會導致整個 Service Worker 安裝失敗。 */
 var CORE = [
@@ -19,11 +19,13 @@ var CORE = [
   './js/config.js',
   './js/craft.js',
   './js/divine-arms.js',
+  './js/duo-realm.js',
   './js/firebase-config.js',
   './js/guide.js',
   './js/input.js',
   './js/inventory.js',
   './js/journal.js',
+  './js/laopi-life.js',
   './js/main.js',
   './js/minimap.js',
   './js/mobs.js',
@@ -48,6 +50,8 @@ var ASSETS = [
   './assets/apple-touch-icon.png',
   './assets/bear.png',
   './assets/bear_walk.png',
+  './assets/badger.png',
+  './assets/badger_run.png',
   './assets/bed.png',
   './assets/berry.png',
   './assets/berry_empty.png',
@@ -83,6 +87,8 @@ var ASSETS = [
   './assets/crow_fly.png',
   './assets/deer.png',
   './assets/deer_walk.png',
+  './assets/fox.png',
+  './assets/fox_run.png',
   './assets/fence.png',
   './assets/fx_hit.png',
   './assets/fx_dodge.png',
@@ -91,6 +97,8 @@ var ASSETS = [
   './assets/fx_warning.png',
   './assets/grass.png',
   './assets/grass_cut.png',
+  './assets/goat.png',
+  './assets/goat_charge.png',
   './assets/icon-192.png',
   './assets/icon-512.png',
   './assets/mate_archer.png',
@@ -103,6 +111,7 @@ var ASSETS = [
   './assets/mate_knight_sheet.png',
   './assets/mate_knight_walk.png',
   './assets/mate_laopi_sheet.png',
+  './assets/mate_laopi_transform_sheet.png',
   './assets/mate_sprite.png',
   './assets/mate_sprite_sheet.png',
   './assets/mate_sprite_walk.png',
@@ -145,6 +154,7 @@ var ASSETS = [
   './assets/ui/sack.png',
   './assets/ui/shovel.png',
   './assets/ui/soup.png',
+  './assets/ui/sandwich.png',
   './assets/ui/stone.png',
   './assets/ui/stones.png',
   './assets/ui/wood.png',

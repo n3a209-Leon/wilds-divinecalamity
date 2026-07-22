@@ -73,6 +73,22 @@ html, body {
   background:radial-gradient(circle at 35% 30%,rgba(90,215,245,.28),rgba(8,35,52,.72));
 }
 .roll-btn.cooldown { filter:saturate(.35); opacity:.68; }
+.bond-btn {
+  position:relative; display:none; overflow:hidden;
+  border-color:rgba(255,218,80,.82);
+  background:radial-gradient(circle at 35% 28%,rgba(255,224,95,.42),rgba(77,49,8,.88));
+  box-shadow:0 0 0 3px rgba(255,215,70,.16),0 0 24px rgba(255,190,35,.48);
+  animation:bondReady 1.15s ease-in-out infinite alternate;
+}
+.bond-btn.ready,.bond-btn.active { display:flex; }
+.bond-btn.holding { transform:scale(.9); filter:brightness(1.35); }
+.bond-btn.active { animation:none; border-color:#fff2ae; }
+#bond-hold-label {
+  position:absolute; left:4px; right:4px; bottom:7px;
+  color:#fff1a8; font:800 7px/1 -apple-system,"PingFang TC",sans-serif;
+  text-shadow:0 1px 3px #2e1900;
+}
+@keyframes bondReady { from{transform:scale(.96)} to{transform:scale(1.05)} }
 #roll-cooldown {
   position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
   color:#dff9ff; font:700 12px/1 -apple-system,sans-serif;
@@ -181,7 +197,8 @@ html, body {
   border:1px solid rgba(255,255,255,.14);
   color:#f0f4e6; font-size:14px;
   opacity:0; transition:opacity .25s;
-  pointer-events:none; white-space:nowrap;
+  max-width:calc(100vw - 28px); text-align:center; line-height:1.35;
+  pointer-events:none; white-space:normal;
 }
 
 #bag-panel {
@@ -227,7 +244,16 @@ html, body {
 .bar-fill.food { background:#d59a3c; }
 .bar-fill.stam { background:#59b0d5; }
 
-#bag-actions { display:flex; gap:8px; margin-top:12px; }
+#bag-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+#bag-actions .diag-btn { flex:1 1 112px; }
+.bond-story {
+  margin-bottom:12px; padding:12px 13px; border:1px solid rgba(255,213,82,.28); border-radius:14px;
+  background:linear-gradient(135deg,rgba(114,75,18,.25),rgba(42,29,9,.35)); line-height:1.45;
+}
+.bond-story strong,.bond-story span,.bond-story small { display:block; }
+.bond-story strong { color:#ffe68a; font-size:14px; }
+.bond-story span { margin-top:4px; color:#dbe5ce; font-size:11px; }
+.bond-story small { margin-top:7px; color:#c9b870; font-size:10px; }
 
 #craft-panel {
   position:absolute; inset:0; z-index:9500;
@@ -442,6 +468,53 @@ button.btn-pop { animation: btnpop .18s ease-out; }
 #journal-track-fill { width:0; height:100%; background:linear-gradient(90deg,#a67a2f,#f0d776); transition:width .25s; }
 #journal-track-text { overflow:hidden; color:#d5dfcd; font-size:10px; line-height:1.25; text-overflow:ellipsis; white-space:nowrap; }
 
+#realm-status {
+  position:absolute; z-index:14; display:none;
+  left:50%; top:calc(env(safe-area-inset-top) + 128px); transform:translateX(-50%);
+  width:min(340px,78vw); padding:8px 12px 9px; border-radius:13px;
+  border:1px solid rgba(255,219,100,.5);
+  background:linear-gradient(135deg,rgba(73,49,10,.88),rgba(20,25,10,.88));
+  box-shadow:0 5px 18px rgba(0,0,0,.35),inset 0 0 16px rgba(255,203,62,.06);
+  color:#fff1b3; text-align:center; pointer-events:none;
+}
+body.realm-active #realm-status { display:block; }
+body.realm-active #journal-track { display:none; }
+#realm-status-title { font-size:11px; font-weight:800; }
+#realm-status-text { margin-top:2px; overflow:hidden; color:#e4ead4; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+
+#realm-choice-panel { justify-content:center; align-items:center; background:rgba(7,10,6,.82); }
+.realm-choice-card {
+  width:min(460px,92vw); padding:22px 18px; border-radius:20px;
+  border:1px solid rgba(255,217,96,.4);
+  background:linear-gradient(150deg,rgba(54,42,13,.98),rgba(15,22,11,.98));
+  box-shadow:0 18px 60px rgba(0,0,0,.56);
+}
+.realm-choice-row { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:18px; }
+.realm-choice-row button {
+  min-height:78px; padding:12px 8px; border:1px solid rgba(255,227,135,.32); border-radius:14px;
+  background:rgba(255,255,255,.07); color:#fff1b1; font-size:14px; font-weight:760;
+}
+.realm-choice-row button:last-child { border-color:rgba(201,145,255,.58); background:rgba(99,50,137,.28); color:#f0d8ff; }
+.realm-choice-row small { display:block; margin-top:6px; color:#cbd6bd; font-size:9px; line-height:1.35; font-weight:500; }
+
+#sandwich-choice-panel { z-index:9700; justify-content:center; align-items:center; background:rgba(7,10,6,.9); }
+.sandwich-choice-card {
+  position:relative; width:min(500px,94vw); padding:92px 18px 20px; border-radius:22px;
+  border:1px solid rgba(255,205,76,.48);
+  background:linear-gradient(150deg,rgba(74,47,12,.99),rgba(19,24,11,.99));
+  box-shadow:0 20px 70px rgba(0,0,0,.62),inset 0 0 28px rgba(255,205,70,.05);
+}
+.sandwich-hero {
+  position:absolute; left:50%; top:-64px; transform:translateX(-50%);
+  width:150px; height:150px; object-fit:contain; filter:drop-shadow(0 12px 18px rgba(0,0,0,.45));
+}
+.sandwich-choice-grid { display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:15px; }
+.sandwich-choice-grid button {
+  min-height:78px; padding:10px 8px; border:1px solid rgba(255,222,116,.32); border-radius:14px;
+  background:rgba(255,255,255,.07); color:#fff0ac; font-size:13px; font-weight:760;
+}
+.sandwich-choice-grid small { display:block; margin-top:5px; color:#cbd6bd; font-size:9px; line-height:1.35; font-weight:500; }
+
 #reward-summary {
   margin-bottom:9px; padding:11px 12px; border-radius:13px;
   border:1px solid rgba(255,187,92,.27); background:linear-gradient(135deg,rgba(118,65,23,.28),rgba(61,34,75,.22));
@@ -495,6 +568,11 @@ button.btn-pop { animation: btnpop .18s ease-out; }
   #guide-hint, #journal-track-title { display:none; }
   #guide-info { top:calc(env(safe-area-inset-top) + 69px); padding:5px 10px; }
   #journal-track { top:calc(env(safe-area-inset-top) + 103px); padding:5px 9px 6px; }
+  #realm-status { top:calc(env(safe-area-inset-top) + 103px); padding:6px 10px 7px; }
+  .realm-choice-row { grid-template-columns:1fr; }
+  .sandwich-choice-card { padding-top:72px; }
+  .sandwich-hero { top:-55px; width:126px; height:126px; }
+  .sandwich-choice-grid { grid-template-columns:1fr; max-height:52vh; overflow-y:auto; }
   #toast { top:calc(env(safe-area-inset-top) + 143px); max-width:88vw; overflow:hidden; text-overflow:ellipsis; }
 }
 
@@ -522,6 +600,7 @@ button.btn-pop { animation: btnpop .18s ease-out; }
   #guide-info { top:calc(env(safe-area-inset-top) + 50px); max-width:58vw; }
   #guide-hint { display:none; }
   #journal-track { top:calc(env(safe-area-inset-top) + 88px); width:min(300px,58vw); }
+  #realm-status { top:calc(env(safe-area-inset-top) + 88px); width:min(320px,62vw); }
   #journal-track-title { display:none; }
   #toast { top:calc(env(safe-area-inset-top) + 135px); }
   #actions { gap:6px; bottom:calc(env(safe-area-inset-bottom) + 10px); }
