@@ -1,4 +1,4 @@
-var CACHE_VERSION = 'wilds-v47';
+var CACHE_VERSION = 'wilds-v51-compact-ui';
 
 /* CORE：缺一不可；其餘素材逐筆快取，單一檔案 404 不會導致整個 Service Worker 安裝失敗。 */
 var CORE = [
@@ -13,6 +13,9 @@ var CORE = [
   './js/camera.js',
   './js/cloud.js',
   './js/companions.js',
+  './js/chatter.js',
+  './js/bondmate.js',
+  './js/sages.js',
   './js/config.js',
   './js/craft.js',
   './js/divine-arms.js',
@@ -99,6 +102,7 @@ var ASSETS = [
   './assets/mate_knight.png',
   './assets/mate_knight_sheet.png',
   './assets/mate_knight_walk.png',
+  './assets/mate_laopi_sheet.png',
   './assets/mate_sprite.png',
   './assets/mate_sprite_sheet.png',
   './assets/mate_sprite_walk.png',
@@ -165,7 +169,7 @@ self.addEventListener('install', function(e) {
 });
 
 function isStartupAsset(u) {
-  return !/(\/boss_|\/cal_|\/mate_|\/ui\/divine_|\/player.*_(abyss|death|end|phoenix|star))/i.test(u);
+  return !/(\/boss_|\/cal_|\/mate_|\/ui\/divine_|\/player.*_(abyss|death|end|phoenix|star|found_family))/i.test(u);
 }
 
 /* 新版本先待命；玩家確認並完成存檔後，頁面才要求切換。 */

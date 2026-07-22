@@ -29,20 +29,33 @@
     </div>
   </div>
   <div id="hud-right">
-    <div class="hud-line" id="hud-fps">-- FPS</div>
-    <div class="hud-line" id="hud-time">--</div>
-    <div id="hud-tools">
-      <button id="btn-guide" aria-label="切換導航目標" title="切換區域首領／祭壇">🧭</button>
-      <button id="btn-travel" aria-label="快速移動" title="快速移動">🌀</button>
-      <button id="btn-equip" aria-label="裝備欄" title="裝備欄">🛡️</button>
-      <button id="btn-skin" aria-label="切換角色外觀" title="切換角色外觀">👗</button>
-      <button id="btn-journal" aria-label="冒險日誌" title="冒險日誌">📜</button>
-      <button id="btn-rewards" aria-label="獎勵中心" title="獎勵中心">🎁<span id="reward-badge"></span></button>
-      <button id="btn-settings" aria-label="遊戲設定" title="遊戲設定">⚙️</button>
-      <button id="btn-mute" aria-label="切換音效" title="切換音效">🔊</button>
-      <button id="btn-sync" aria-label="雲端同步" title="雲端同步">☁️</button>
-      <button id="btn-diag" aria-label="開啟診斷" title="診斷工具">🔧</button>
+    <div id="hud-meta">
+      <div class="hud-line" id="hud-fps">-- FPS</div>
+      <div class="hud-line" id="hud-time">--</div>
     </div>
+    <div id="hud-tools">
+      <button class="hud-tool-primary" id="btn-guide" aria-label="切換導航目標" title="切換區域首領／祭壇"><span aria-hidden="true">🧭</span><span>導航</span></button>
+      <button class="hud-tool-primary" id="btn-menu" aria-label="開啟快速功能" aria-controls="quick-menu" aria-expanded="false" title="快速功能"><span aria-hidden="true">☰</span><span>功能</span><span id="menu-badge"></span></button>
+    </div>
+  </div>
+</div>
+
+<div id="quick-menu-backdrop"></div>
+<div id="quick-menu" role="dialog" aria-modal="true" aria-labelledby="quick-menu-title" aria-hidden="true">
+  <div class="quick-menu-head">
+    <div><strong id="quick-menu-title">快速功能</strong><small>選擇後自動收起</small></div>
+    <button id="quick-menu-close" aria-label="關閉快速功能">×</button>
+  </div>
+  <div class="quick-menu-grid">
+    <button class="quick-item" id="btn-travel" aria-label="快速移動"><span class="quick-icon" aria-hidden="true">🌀</span><span class="quick-label">移動</span></button>
+    <button class="quick-item" id="btn-equip" aria-label="裝備欄"><span class="quick-icon" aria-hidden="true">🛡️</span><span class="quick-label">裝備</span></button>
+    <button class="quick-item" id="btn-skin" aria-label="切換角色"><span class="quick-icon" aria-hidden="true">🧑</span><span class="quick-label">換角色</span></button>
+    <button class="quick-item" id="btn-journal" aria-label="冒險日誌"><span class="quick-icon" aria-hidden="true">📜</span><span class="quick-label">日誌</span></button>
+    <button class="quick-item" id="btn-rewards" aria-label="獎勵中心"><span class="quick-icon" aria-hidden="true">🎁</span><span class="quick-label">獎勵</span><span id="reward-badge"></span></button>
+    <button class="quick-item" id="btn-settings" aria-label="遊戲設定"><span class="quick-icon" aria-hidden="true">⚙️</span><span class="quick-label">設定</span></button>
+    <button class="quick-item" id="btn-mute" aria-label="切換音效"><span class="quick-icon" aria-hidden="true">🔊</span><span class="quick-label">音效</span></button>
+    <button class="quick-item" id="btn-sync" aria-label="雲端同步"><span class="quick-icon" aria-hidden="true">☁️</span><span class="quick-label">雲端</span></button>
+    <button class="quick-item quick-item-secondary" id="btn-diag" aria-label="開啟診斷"><span class="quick-icon" aria-hidden="true">🔧</span><span class="quick-label">診斷</span></button>
   </div>
 </div>
 
@@ -238,6 +251,9 @@ window.addEventListener('error', function(e) {
 <script src="js/build.js"></script>
 <script src="js/sites.js"></script>
 <script src="js/companions.js"></script>
+<script src="js/chatter.js"></script>
+<script src="js/bondmate.js"></script>
+<script src="js/sages.js"></script>
 <script src="js/divine-arms.js"></script>
 <script src="js/bosses.js"></script>
 <script src="js/calamity.js"></script>
