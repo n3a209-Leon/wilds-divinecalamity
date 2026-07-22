@@ -44,10 +44,10 @@ check(W.Skins.tryPhoenixRevive() === 0.35, '飛升輪迴提升後不死鳥會重
 W.Render.impact(10, 20, true);
 check(W.Render.stepFrame(0.016) === 0 && W.Render.stepFrame(0.1) === 0 && W.Render.stepFrame(0.016) > 0, '重擊命中停頓會自動結束，不會永久鎖死遊戲');
 
-/* v18 → v19：舊永久單次旗標轉成當前輪迴使用紀錄。 */
+/* v18 → v20：先升不死鳥輪迴格式，再補老皮羈絆資料。 */
 const old = {v:18,seed:W.CFG.SEED,skins:{phoenixUsed:true},calamity:{ascensionCycle:4}};
 const migrated = W.Save.migrate(old);
-check(migrated && migrated.v === 19 && migrated.skins.phoenixCycle === 4, 'v18 存檔可安全遷移到 v19 不死鳥輪迴格式');
+check(migrated && migrated.v === 20 && migrated.skins.phoenixCycle === 4 && migrated.bondMate, 'v18 存檔可安全遷移到 v20 並補齊老皮資料');
 
 /* 圖片必須有 alpha，且尺寸符合行動裝置成本。 */
 for (const name of ['fx_warning.png','fx_hit.png','fx_travel.png']) {

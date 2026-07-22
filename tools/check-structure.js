@@ -47,8 +47,9 @@ const save = read('js/save.js'), craft = read('js/craft.js');
 check(/travel:\s*W\.Travel/.test(save) && /importData\(data\.travel\)/.test(save) && /data\.travel/.test(save), '存檔三鐵律：travel collect/apply/migrate 齊全');
 check(/journal:\s*W\.Journal/.test(save) && /importData\(data\.journal\)/.test(save) && /data\.journal/.test(save), '存檔三鐵律：journal collect/apply/migrate 齊全');
 check(/rewards:\s*W\.Rewards/.test(save) && /importData\(data\.rewards\)/.test(save) && /data\.rewards/.test(save), '存檔三鐵律：rewards collect/apply/migrate 齊全');
+check(/bondMate:\s*W\.BondMate/.test(save) && /importData\(data\.bondMate\)/.test(save) && /data\.bondMate/.test(save), '存檔三鐵律：老皮 collect/apply/migrate 齊全');
 check(/equipped:\s*gear\.equipped/.test(craft) && /o\.equipped/.test(craft), '存檔三鐵律：主手裝備可匯出與還原');
-check(/var VERSION = 19/.test(save), '存檔版本為 v19');
+check(/var VERSION = 20/.test(save), '存檔版本為 v20');
 check(/BACKUP_1\s*=\s*'save_backup_1'/.test(save) && /BACKUP_2\s*=\s*'save_backup_2'/.test(save) && /recoverBackup/.test(save) && /checksumOf/.test(save), '存檔安全：雙輪替備份、校驗與自動復原齊全');
 
 const render = read('js/render.js');
@@ -66,7 +67,7 @@ const scriptPaths = [...html.matchAll(/<script\s+src="(js\/[^"]+\.js)"/g)].map(m
 const cached = new Set([...sw.matchAll(/["']\.\/([^"']+)["']/g)].map(m=>m[1]));
 const uncached = scriptPaths.filter(p=>!cached.has(p));
 check(!uncached.length, 'Service Worker：所有本機腳本均已快取' + (uncached.length?'（'+uncached.join(', ')+'）':''));
-check(/CACHE_VERSION\s*=\s*'wilds-v43'/.test(sw), 'Service Worker 版本為 wilds-v43');
+check(/CACHE_VERSION\s*=\s*'wilds-v51-compact-ui'/.test(sw), 'Service Worker 版本為 wilds-v51-compact-ui');
 const missingCache = [...cached].filter(p=>!exists(p));
 check(!missingCache.length, 'Service Worker：快取路徑全部存在' + (missingCache.length?'（'+missingCache.join(', ')+'）':''));
 
@@ -77,9 +78,9 @@ const missingArt = artNames.filter(n=>!exists('assets/'+n+'.png'));
 check(!!names && !missingArt.length, '素材契約：art.js 登錄素材全部存在' + (missingArt.length?'（'+missingArt.join(', ')+'）':''));
 
 const skinSrc = read('js/skins.js');
-const skinPaths = [...skinSrc.matchAll(/'((?:assets\/)?player2?_(?:abyss|death|star|phoenix|end)\.png)'/g)].map(m=>m[1]);
+const skinPaths = [...skinSrc.matchAll(/'((?:assets\/)?player2?_(?:abyss|death|star|phoenix|end|found_family)\.png)'/g)].map(m=>m[1]);
 const missingSkins = skinPaths.filter(p=>!exists(p));
-check(skinPaths.length===10 && !missingSkins.length, 'Skin 契約：兩名角色 × 五套實體動畫素材完整' + (missingSkins.length?'（'+missingSkins.join(', ')+'）':''));
+check(skinPaths.length===12 && !missingSkins.length, 'Skin 契約：兩名角色 × 六套實體動畫素材完整' + (missingSkins.length?'（'+missingSkins.join(', ')+'）':''));
 check(/phoenixCycle/.test(skinSrc) && /data\.skins\.phoenixCycle/.test(save), 'Skin 存檔：不死鳥按飛升輪迴重置且具備遷移');
 
 const calamity = read('js/calamity.js');
