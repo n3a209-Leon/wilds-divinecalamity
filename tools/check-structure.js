@@ -48,8 +48,9 @@ check(/travel:\s*W\.Travel/.test(save) && /importData\(data\.travel\)/.test(save
 check(/journal:\s*W\.Journal/.test(save) && /importData\(data\.journal\)/.test(save) && /data\.journal/.test(save), '存檔三鐵律：journal collect/apply/migrate 齊全');
 check(/rewards:\s*W\.Rewards/.test(save) && /importData\(data\.rewards\)/.test(save) && /data\.rewards/.test(save), '存檔三鐵律：rewards collect/apply/migrate 齊全');
 check(/bondMate:\s*W\.BondMate/.test(save) && /importData\(data\.bondMate\)/.test(save) && /data\.bondMate/.test(save), '存檔三鐵律：老皮 collect/apply/migrate 齊全');
+check(/laopiLife:\s*W\.LaopiLife/.test(save) && /importData\(data\.laopiLife\)/.test(save) && /data\.laopiLife/.test(save), '存檔三鐵律：老皮荒野生活 collect/apply/migrate 齊全');
 check(/equipped:\s*gear\.equipped/.test(craft) && /o\.equipped/.test(craft), '存檔三鐵律：主手裝備可匯出與還原');
-check(/var VERSION = 20/.test(save), '存檔版本為 v20');
+check(/var VERSION = 22/.test(save), '存檔版本為 v22');
 check(/BACKUP_1\s*=\s*'save_backup_1'/.test(save) && /BACKUP_2\s*=\s*'save_backup_2'/.test(save) && /recoverBackup/.test(save) && /checksumOf/.test(save), '存檔安全：雙輪替備份、校驗與自動復原齊全');
 
 const render = read('js/render.js');
@@ -67,7 +68,7 @@ const scriptPaths = [...html.matchAll(/<script\s+src="(js\/[^"]+\.js)"/g)].map(m
 const cached = new Set([...sw.matchAll(/["']\.\/([^"']+)["']/g)].map(m=>m[1]));
 const uncached = scriptPaths.filter(p=>!cached.has(p));
 check(!uncached.length, 'Service Worker：所有本機腳本均已快取' + (uncached.length?'（'+uncached.join(', ')+'）':''));
-check(/CACHE_VERSION\s*=\s*'wilds-v51-compact-ui'/.test(sw), 'Service Worker 版本為 wilds-v51-compact-ui');
+check(/CACHE_VERSION\s*=\s*'wilds-v55-wild-ecology'/.test(sw), 'Service Worker 版本為 wilds-v55-wild-ecology');
 const missingCache = [...cached].filter(p=>!exists(p));
 check(!missingCache.length, 'Service Worker：快取路徑全部存在' + (missingCache.length?'（'+missingCache.join(', ')+'）':''));
 

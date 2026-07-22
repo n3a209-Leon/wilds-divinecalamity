@@ -47,7 +47,7 @@ check(W.Render.stepFrame(0.016) === 0 && W.Render.stepFrame(0.1) === 0 && W.Rend
 /* v18 → v20：先升不死鳥輪迴格式，再補老皮羈絆資料。 */
 const old = {v:18,seed:W.CFG.SEED,skins:{phoenixUsed:true},calamity:{ascensionCycle:4}};
 const migrated = W.Save.migrate(old);
-check(migrated && migrated.v === 20 && migrated.skins.phoenixCycle === 4 && migrated.bondMate, 'v18 存檔可安全遷移到 v20 並補齊老皮資料');
+check(migrated && migrated.v === 22 && migrated.skins.phoenixCycle === 4 && migrated.bondMate && migrated.laopiLife, 'v18 存檔可安全遷移到 v22 並補齊老皮、秘境與荒野生活資料');
 
 /* 圖片必須有 alpha，且尺寸符合行動裝置成本。 */
 for (const name of ['fx_warning.png','fx_hit.png','fx_travel.png']) {

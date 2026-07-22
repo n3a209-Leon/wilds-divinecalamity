@@ -43,6 +43,6 @@ must(main.indexOf("document.getElementById('menu-badge')") >= 0 && main.indexOf(
 must(main.indexOf("silent?'音效關':'音效'") >= 0 && main.indexOf("signedIn?'已同步':'雲端'") >= 0,
   '音效與雲端按鈕會反映目前狀態');
 
-must(sw.indexOf("var CACHE_VERSION = 'wilds-v51-compact-ui';") >= 0, 'Service Worker 已切換為 v51 精簡 UI 快取');
+must(sw.indexOf("var CACHE_VERSION = 'wilds-v55-wild-ecology';") >= 0, 'Service Worker 已切換為目前部署快取');
 
 console.log('\n=== Phase 21 精簡 UI 驗證全部通過 ===');

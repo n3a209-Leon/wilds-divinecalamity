@@ -1,7 +1,7 @@
 /* 依「語法 → 載入期 → 結構」順序執行；任一層失敗立即停止。 */
 const path = require('path');
 const cp = require('child_process');
-const steps = ['check-syntax.js','check-load.js','check-structure.js','check-phase16.js','check-phase17.js','check-phase18.js','check-phase19.js','check-phase20.js','check-phase21.js','check-save-backup.js'];
+const steps = ['check-syntax.js','check-load.js','check-structure.js','check-phase16.js','check-phase17.js','check-phase18.js','check-phase19.js','check-phase20.js','check-phase21.js','check-phase22.js','check-phase23.js','check-phase24.js','check-phase25.js','check-save-backup.js'];
 
 for (const step of steps) {
   console.log('\n============================================================');

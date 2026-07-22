@@ -49,7 +49,7 @@ const beforeX=mate.wx,beforeAnim=mate.animT;W.Mates.update(0.1);
 check(mate.wx!==beforeX&&Math.abs(mate.vx)>0&&mate.animT>beforeAnim&&typeof mate.bob==='number','夥伴以加速度移動並持續更新自然動畫狀態');
 check(Math.abs(mate.wx-beforeX)<W.CFG.PLAYER_SPEED*0.1,'夥伴不會在一般距離瞬移或硬切位置');
 
-let hits=0;const foe={alive:true,wx:mate.wx+45,wy:mate.wy,type:0};
+let hits=0;const foe={alive:true,wx:mate.wx+45,wy:mate.wy,type:W.Mobs.TYPE.WOLF,threatT:1,hurt:0,aggroT:0,challengeKey:''};
 W.Mobs.count=()=>1;W.Mobs.at=()=>foe;W.Mobs.hitAt=(x,y,r,dmg)=>{hits++;return {wx:foe.wx,wy:foe.wy,dmg,name:'測試目標',killed:false};};
 mate.atkT=0;mate.actionT=0;W.Mates.update(0.02);
 check(hits>0&&mate.actionT>0&&mate.hitWx===foe.wx,'夥伴會主動瞄準範圍內目標並切入攻擊幀');

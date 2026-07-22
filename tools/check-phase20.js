@@ -48,7 +48,7 @@ check(lethal === true && !W.Stats.isDead() && W.Stats.hpPct() >= 0.25 && W.Inv.c
 
 const old = {v:19,seed:W.CFG.SEED,time:{day:7,t:0.2},skins:{},calamity:{}};
 const migrated = W.Save.migrate(old);
-check(migrated && migrated.v === 20 && migrated.bondMate && migrated.bondMate.lastBondDay === 7, 'v19 舊存檔升 v20 時補齊老皮記憶');
+check(migrated && migrated.v === 22 && migrated.bondMate && migrated.bondMate.lastBondDay === 7 && migrated.laopiLife, 'v19 舊存檔升 v22 時補齊老皮記憶、秘境與荒野生活紀錄');
 
 W.Skins.clear();
 W.BondMate.importData({daysTogether:3,lastBondDay:7,blocks:8,bossWins:1,calamityWins:0,rescues:0,lastRescueDay:-1});
